@@ -1,0 +1,76 @@
+version: "3.9"
+
+# ============================================================
+# Cassandrina — Development Docker Compose
+# No resource limits; services exposed on localhost for debugging.
+# ============================================================
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: cassandrina
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: cassandrina
+    volumes:
+      - timescaledb_dev_data:/var/lib/postgresql/data
+      - ./configs/timescaledb/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cassandrina"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  webapp:
+    build:
+      context: ..
+      dockerfile: apps/webapp/Dockerfile
+      target: base
+    command: pnpm dev
+    env_file: ../.env.example
+    environment:
+      DATABASE_URL: postgresql://cassandrina:devpassword@timescaledb:5432/cassandrina
+      REDIS_URL: redis://redis:6379/0
+      BINANCE_TESTNET: "true"
+    volumes:
+      - ../apps/webapp:/repo/apps/webapp
+      - ../packages:/repo/packages
+    ports:
+      - "3000:3000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  trading-bot:
+    build:
+      context: ../services/trading-bot
+    command: python -m pytest tests/ -v
+    env_file: ../.env.example
+    environment:
+      DATABASE_URL: postgresql://cassandrina:devpassword@timescaledb:5432/cassandrina
+      REDIS_URL: redis://redis:6379/0
+      BINANCE_TESTNET: "true"
+    volumes:
+      - ../services/trading-bot:/app
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  timescaledb_dev_data:

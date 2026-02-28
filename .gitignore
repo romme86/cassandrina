@@ -1,0 +1,49 @@
+# Node
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+.next/
+out/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Go
+apps/whatsapp-bot/whatsapp-bot
+apps/whatsapp-bot/*.exe
+
+# Docker
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LND macaroons (never commit)
+*.macaroon
+admin.macaroon
+invoice.macaroon

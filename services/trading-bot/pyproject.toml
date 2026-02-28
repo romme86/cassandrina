@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "cassandrina-trading-bot"
+version = "0.1.0"
+description = "Gamified Bitcoin trading bot — scoring, strategy, trading engine"
+authors = ["Cassandrina"]
+readme = "README.md"
+packages = [{ include = "cassandrina" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-binance = "^1.0.19"
+requests = "^2.31"
+apscheduler = "^3.10"
+redis = "^5.0"
+psycopg2-binary = "^2.9"
+python-dotenv = "^1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-cov = "^5.0"
+pytest-mock = "^3.14"
+responses = "^0.25"
+freezegun = "^1.4"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
