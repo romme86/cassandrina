@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ============================================================
 # Cassandrina — Production Docker Compose
 # Tuned for Raspberry Pi 5 (8 GB RAM)

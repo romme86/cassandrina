@@ -1,98 +1,207 @@
+import Link from "next/link";
 import { query } from "@/lib/db";
-import type { PredictionRound } from "@cassandrina/shared";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusBadge } from "@/components/status-badge";
+import { StrategyBadge } from "@/components/strategy-badge";
+import { AutoRefresh } from "@/components/auto-refresh";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
-async function getRounds(): Promise<PredictionRound[]> {
+interface RoundWithMeta {
+  id: number;
+  question_date: string;
+  target_hour: number;
+  open_at: string;
+  close_at: string | null;
+  polymarket_probability: number | null;
+  status: string;
+  btc_target_price: number | null;
+  btc_actual_price: number | null;
+  confidence_score: number | null;
+  strategy_used: string | null;
+  participant_count: number;
+  winner_name: string | null;
+}
+
+interface StrategyRow {
+  strategy: string;
+  total_trades: number;
+  wins: number;
+  avg_pnl_sats: number;
+  total_pnl_sats: number;
+}
+
+async function getRounds(): Promise<RoundWithMeta[]> {
   try {
-    return await query<PredictionRound>(
-      "SELECT * FROM prediction_rounds ORDER BY question_date DESC LIMIT 30"
+    return await query<RoundWithMeta>(
+      `SELECT r.*,
+              COUNT(DISTINCT p.id)::int AS participant_count,
+              (SELECT u.display_name
+               FROM predictions p2
+               JOIN users u ON u.id = p2.user_id
+               WHERE p2.round_id = r.id AND r.btc_actual_price IS NOT NULL
+               ORDER BY ABS(p2.predicted_price - r.btc_actual_price) ASC
+               LIMIT 1) AS winner_name
+       FROM prediction_rounds r
+       LEFT JOIN predictions p ON p.round_id = r.id
+       GROUP BY r.id
+       ORDER BY r.question_date DESC
+       LIMIT 50`
     );
   } catch {
     return [];
   }
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    open: "bg-green-800 text-green-200",
-    closed: "bg-gray-700 text-gray-300",
-    settled: "bg-blue-800 text-blue-200",
-  };
+async function getStrategyStats(): Promise<StrategyRow[]> {
+  try {
+    return await query<StrategyRow>(
+      `SELECT strategy,
+              COUNT(*)::int AS total_trades,
+              SUM(CASE WHEN pnl_sats > 0 THEN 1 ELSE 0 END)::int AS wins,
+              ROUND(AVG(pnl_sats))::int AS avg_pnl_sats,
+              SUM(pnl_sats)::int AS total_pnl_sats
+       FROM trades WHERE status IN ('closed','liquidated')
+       GROUP BY strategy ORDER BY strategy`
+    );
+  } catch {
+    return [];
+  }
+}
+
+function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
+  if (rounds.length === 0) {
+    return (
+      <tr>
+        <td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
+          No rounds yet
+        </td>
+      </tr>
+    );
+  }
   return (
-    <span className={`px-2 py-0.5 rounded text-xs ${colors[status] ?? "bg-gray-700"}`}>
-      {status}
-    </span>
+    <>
+      {rounds.map((r) => (
+        <TableRow
+          key={r.id}
+          className="cursor-pointer hover:bg-muted/30"
+          onClick={() => {
+            if (typeof window !== "undefined") window.location.href = `/predictions/${r.id}`;
+          }}
+        >
+          <TableCell className="font-mono text-xs">{r.question_date}</TableCell>
+          <TableCell>
+            <StatusBadge status={r.status} />
+          </TableCell>
+          <TableCell className="text-right font-mono text-xs">
+            {r.polymarket_probability != null
+              ? `${(r.polymarket_probability * 100).toFixed(0)}%`
+              : "—"}
+          </TableCell>
+          <TableCell className="text-right font-mono text-xs">
+            {r.confidence_score != null ? `${r.confidence_score.toFixed(1)}%` : "—"}
+          </TableCell>
+          <TableCell>
+            <StrategyBadge strategy={r.strategy_used} />
+          </TableCell>
+          <TableCell className="text-right font-mono text-xs">
+            {r.btc_target_price != null ? `$${r.btc_target_price.toLocaleString()}` : "—"}
+          </TableCell>
+          <TableCell className="text-right font-mono text-xs">
+            {r.btc_actual_price != null ? `$${r.btc_actual_price.toLocaleString()}` : "—"}
+          </TableCell>
+          <TableCell className="text-right text-xs">{r.participant_count}</TableCell>
+          <TableCell className="text-xs text-muted-foreground">{r.winner_name ?? "—"}</TableCell>
+        </TableRow>
+      ))}
+    </>
   );
 }
 
 export default async function PredictionsPage() {
-  const rounds = await getRounds();
+  const [rounds, strategies] = await Promise.all([getRounds(), getStrategyStats()]);
+
+  const openRounds = rounds.filter((r) => r.status === "open");
+  const settledRounds = rounds.filter((r) => r.status === "settled");
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-orange-400">Prediction History</h1>
+      <AutoRefresh />
+      <h1 className="text-2xl font-bold text-primary">Prediction History</h1>
 
-      <div className="overflow-x-auto bg-gray-900 rounded-xl border border-gray-800">
-        <table className="w-full text-sm">
-          <thead className="text-gray-400 border-b border-gray-800">
-            <tr>
-              <th className="text-left px-4 py-3">Date</th>
-              <th className="text-left px-4 py-3">Status</th>
-              <th className="text-right px-4 py-3">Polymarket</th>
-              <th className="text-right px-4 py-3">Confidence</th>
-              <th className="text-left px-4 py-3">Strategy</th>
-              <th className="text-right px-4 py-3">Target Price</th>
-              <th className="text-right px-4 py-3">Actual Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rounds.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-500">
-                  No rounds yet
-                </td>
-              </tr>
-            ) : (
-              rounds.map((r) => (
-                <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="px-4 py-3 font-mono">{r.question_date}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {r.polymarket_probability != null
-                      ? `${(r.polymarket_probability * 100).toFixed(0)}%`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {r.confidence_score != null
-                      ? `${r.confidence_score.toFixed(1)}%`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.strategy_used ? (
-                      <span className="font-bold text-orange-400">
-                        Strategy {r.strategy_used}
-                      </span>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {r.btc_target_price != null
-                      ? `$${r.btc_target_price.toLocaleString()}`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {r.btc_actual_price != null
-                      ? `$${r.btc_actual_price.toLocaleString()}`
-                      : "—"}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Strategy performance panel */}
+      {strategies.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {strategies.map((s) => {
+            const winRate =
+              s.total_trades > 0 ? Math.round((s.wins / s.total_trades) * 100) : 0;
+            return (
+              <Card key={s.strategy}>
+                <CardContent className="pt-4 pb-4">
+                  <StrategyBadge strategy={s.strategy} className="mb-2" />
+                  <p className="text-xs text-muted-foreground">{s.total_trades} trades</p>
+                  <p className="text-xs text-muted-foreground">{winRate}% win rate</p>
+                  <p className="text-xs font-mono mt-1">
+                    <span className={s.avg_pnl_sats >= 0 ? "text-green-400" : "text-red-400"}>
+                      {s.avg_pnl_sats >= 0 ? "+" : ""}
+                      {s.avg_pnl_sats.toLocaleString()} avg
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Rounds table with filter tabs */}
+      <Tabs defaultValue="all">
+        <TabsList>
+          <TabsTrigger value="all">All ({rounds.length})</TabsTrigger>
+          <TabsTrigger value="open">Open ({openRounds.length})</TabsTrigger>
+          <TabsTrigger value="settled">Settled ({settledRounds.length})</TabsTrigger>
+        </TabsList>
+
+        {(["all", "open", "settled"] as const).map((tab) => {
+          const data =
+            tab === "all" ? rounds : tab === "open" ? openRounds : settledRounds;
+          return (
+            <TabsContent key={tab} value={tab}>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Polymarket</TableHead>
+                        <TableHead className="text-right">Confidence</TableHead>
+                        <TableHead>Strategy</TableHead>
+                        <TableHead className="text-right">Target</TableHead>
+                        <TableHead className="text-right">Actual</TableHead>
+                        <TableHead className="text-right">Participants</TableHead>
+                        <TableHead>Winner</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <RoundsTable rounds={data} />
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          );
+        })}
+      </Tabs>
     </div>
   );
 }

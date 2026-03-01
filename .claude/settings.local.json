@@ -5,7 +5,12 @@
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(pip3 install:*)",
-      "Bash(.venv/bin/pytest:*)"
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(git commit:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker volume:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cat:*)"
     ]
   }
 }

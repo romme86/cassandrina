@@ -13,7 +13,6 @@ Required env vars:
 from __future__ import annotations
 
 import os
-import numpy as np
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
@@ -125,7 +124,8 @@ class BinanceClientWrapper:
         quantity_per_grid: float,
     ) -> list[dict]:
         """Place *num_grids* limit buy orders evenly spaced between lower and upper price."""
-        prices = np.linspace(lower_price, upper_price, num_grids)
+        step = (upper_price - lower_price) / max(num_grids - 1, 1)
+        prices = [lower_price + step * i for i in range(num_grids)]
         results = []
         for price in prices:
             result = self._safe_call(

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Node &amp; Wallet Management - SatsTrader Bot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#19e680",
+            "background-light": "#f6f8f7",
+            "background-dark": "#112119",
+            "surface-dark": "#162b21",
+            "surface-dark-lighter": "#1d362a",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-x-hidden">
+<div class="relative flex min-h-screen w-full flex-col">
+  <!-- Header -->
+  <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-surface-dark-lighter bg-background-light dark:bg-background-dark px-10 py-4 sticky top-0 z-50">
+    <div class="flex items-center gap-4">
+      <div class="size-8 text-primary flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl">currency_bitcoin</span>
+      </div>
+      <h2 class="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-[-0.015em]">SatsTrader Bot</h2>
+    </div>
+    <div class="flex flex-1 justify-end gap-8 items-center">
+      <nav class="flex items-center gap-8 hidden lg:flex">
+        <a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Dashboard</a>
+        <a class="text-slate-900 dark:text-white text-sm font-medium leading-normal border-b-2 border-primary" href="#">Nodes &amp; Wallet</a>
+        <a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Trading Bot</a>
+        <a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Settings</a>
+      </nav>
+      <div class="flex items-center gap-4">
+        <button class="flex items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-background-dark text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90 transition-colors">
+          <span class="truncate mr-2">Connect Wallet</span>
+          <span class="material-symbols-outlined text-lg">account_balance_wallet</span>
+        </button>
+        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuACAxBYLcRpY76Zp7a1-A8pSwZtxqYnDPvOjY6pfnIlEBO5jh4OP_TGU312yYje_a7Gx_EewA26ceI9n0a-ecJs_Iw-wSxp0AnHSREi42qYr7DfzAyo33x7tbW-J0uRjOqXQisYnxTV6NmGSwZBvYt7IVzcGIi2ZUysCJXsiihTp-bV16HMRTD83yO4PIog9Q6DJU7zzndz3oeLtJukecI1CgrJceizhV2GI50a5J1A1Xaowa-lxUv2r5CZ9CBaKtfJSB-GEUYFD59s");'></div>
+      </div>
+    </div>
+  </header>
+  <main class="flex-1 flex flex-col items-center py-10 px-6 lg:px-40">
+    <div class="w-full max-w-7xl flex flex-col gap-8">
+      <!-- Page Title -->
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-slate-200 dark:border-surface-dark-lighter">
+        <div class="flex flex-col gap-2">
+          <h1 class="text-4xl font-black leading-tight tracking-[-0.033em]">Node Management</h1>
+          <p class="text-slate-500 dark:text-slate-400 text-base font-normal">Monitor your infrastructure and liquidity.</p>
+        </div>
+        <div class="flex items-center gap-2">
+<span class="flex h-3 w-3 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+</span>
+          <span class="text-primary font-bold text-sm">System Operational</span>
+        </div>
+      </div>
+      <!-- Dashboard Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Bitcoin Node Status -->
+        <div class="flex flex-col gap-4 rounded-xl p-6 bg-white dark:bg-surface-dark border border-slate-200 dark:border-surface-dark-lighter shadow-sm">
+          <div class="flex justify-between items-start">
+            <div class="p-2 rounded-lg bg-orange-500/10 text-orange-500 dark:text-orange-400">
+              <span class="material-symbols-outlined">dns</span>
+            </div>
+            <span class="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-bold uppercase">Online</span>
+          </div>
+          <div>
+            <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Bitcoin Core Node</p>
+            <p class="text-2xl font-bold leading-tight">Block 812,430</p>
+          </div>
+          <div class="mt-auto pt-4 border-t border-slate-100 dark:border-surface-dark-lighter flex justify-between items-center text-sm">
+            <span class="text-slate-400">Uptime: 99.9%</span>
+            <span class="text-primary font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span> Synced
+                        </span>
+          </div>
+        </div>
+        <!-- Lightning Node Status -->
+        <div class="flex flex-col gap-4 rounded-xl p-6 bg-white dark:bg-surface-dark border border-slate-200 dark:border-surface-dark-lighter shadow-sm">
+          <div class="flex justify-between items-start">
+            <div class="p-2 rounded-lg bg-blue-500/10 text-blue-500 dark:text-blue-400">
+              <span class="material-symbols-outlined">bolt</span>
+            </div>
+            <span class="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-bold uppercase">Active</span>
+          </div>
+          <div>
+            <p class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Lightning Network</p>
+            <p class="text-2xl font-bold leading-tight">24 Channels</p>
+          </div>
+          <div class="mt-auto pt-4 border-t border-slate-100 dark:border-surface-dark-lighter flex justify-between items-center text-sm">
+            <span class="text-slate-400">Fee Rate: 150 ppm</span>
+            <span class="text-primary font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span> Ready
+                        </span>
+          </div>
+        </div>
+        <!-- Combined Liquidity Actions -->
+        <div class="flex flex-col justify-center gap-3 lg:row-span-2 rounded-xl p-6 bg-primary/5 border border-primary/20">
+          <h3 class="text-lg font-bold mb-2">Quick Actions</h3>
+          <button class="flex w-full cursor-pointer items-center justify-between rounded-lg h-12 px-4 bg-surface-dark dark:bg-surface-dark-lighter hover:bg-surface-dark-lighter dark:hover:bg-[#254234] text-white text-sm font-bold transition-all border border-transparent hover:border-primary/50 group">
+<span class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">add_circle</span>
+                            Open Channel
+                        </span>
+            <span class="material-symbols-outlined text-slate-500">chevron_right</span>
+          </button>
+          <button class="flex w-full cursor-pointer items-center justify-between rounded-lg h-12 px-4 bg-surface-dark dark:bg-surface-dark-lighter hover:bg-surface-dark-lighter dark:hover:bg-[#254234] text-white text-sm font-bold transition-all border border-transparent hover:border-primary/50 group">
+<span class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">payments</span>
+                            Withdraw Funds
+                        </span>
+            <span class="material-symbols-outlined text-slate-500">chevron_right</span>
+          </button>
+          <button class="flex w-full cursor-pointer items-center justify-between rounded-lg h-12 px-4 bg-primary text-background-dark text-sm font-bold transition-all hover:bg-primary/90 group shadow-lg shadow-primary/20">
+<span class="flex items-center gap-3">
+<span class="material-symbols-outlined group-hover:rotate-12 transition-transform">qr_code_2</span>
+                            Generate Admin Invoice
+                        </span>
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </button>
+        </div>
+        <!-- On-chain Balance -->
+        <div class="flex flex-col gap-2 rounded-xl p-6 bg-gradient-to-br from-surface-dark to-surface-dark-lighter dark:from-surface-dark dark:to-[#0f1a14] border border-slate-200 dark:border-surface-dark-lighter shadow-sm relative overflow-hidden group">
+          <div class="absolute right-0 top-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity opacity-50 group-hover:opacity-75"></div>
+          <div class="relative z-10">
+            <p class="text-slate-400 text-sm font-medium flex items-center gap-2">
+              <span class="material-symbols-outlined text-lg">wallet</span>
+              On-chain Balance
+            </p>
+            <div class="mt-4 flex items-baseline gap-2">
+              <span class="text-4xl font-bold tracking-tight text-white">0.452</span>
+              <span class="text-xl font-medium text-slate-400">BTC</span>
+            </div>
+            <p class="text-primary mt-1 font-mono text-sm">~$28,450.20 USD</p>
+          </div>
+        </div>
+        <!-- Lightning Liquidity -->
+        <div class="flex flex-col gap-2 rounded-xl p-6 bg-gradient-to-br from-surface-dark to-surface-dark-lighter dark:from-surface-dark dark:to-[#0f1a14] border border-slate-200 dark:border-surface-dark-lighter shadow-sm relative overflow-hidden group">
+          <div class="absolute right-0 top-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity opacity-50 group-hover:opacity-75"></div>
+          <div class="relative z-10">
+            <p class="text-slate-400 text-sm font-medium flex items-center gap-2">
+              <span class="material-symbols-outlined text-lg">flash_on</span>
+              Lightning Liquidity
+            </p>
+            <div class="mt-4 flex items-baseline gap-2">
+              <span class="text-4xl font-bold tracking-tight text-white">1.25M</span>
+              <span class="text-xl font-medium text-slate-400">sats</span>
+            </div>
+            <div class="w-full bg-slate-700/50 rounded-full h-1.5 mt-4 mb-1">
+              <div class="bg-primary h-1.5 rounded-full" style="width: 25%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400 font-mono">
+              <span>Outbound: 1.25M</span>
+              <span>Inbound: 5.0M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Transaction History Section -->
+      <div class="flex flex-col gap-4 mt-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-bold">Recent Activity</h3>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 text-xs font-bold rounded-lg bg-primary text-background-dark">All</button>
+            <button class="px-3 py-1.5 text-xs font-bold rounded-lg bg-surface-dark text-slate-400 hover:text-white transition-colors">Invoices</button>
+            <button class="px-3 py-1.5 text-xs font-bold rounded-lg bg-surface-dark text-slate-400 hover:text-white transition-colors">Trades</button>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-surface-dark-lighter bg-white dark:bg-surface-dark overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+              <tr class="border-b border-slate-100 dark:border-surface-dark-lighter text-xs uppercase text-slate-500 font-bold bg-slate-50 dark:bg-surface-dark-lighter/30">
+                <th class="p-4 w-12"></th>
+                <th class="p-4">Type</th>
+                <th class="p-4">Description</th>
+                <th class="p-4">Date</th>
+                <th class="p-4 text-right">Amount</th>
+                <th class="p-4 text-right">Status</th>
+              </tr>
+              </thead>
+              <tbody class="text-sm">
+              <!-- Row 1 -->
+              <tr class="border-b border-slate-100 dark:border-surface-dark-lighter hover:bg-slate-50 dark:hover:bg-surface-dark-lighter/20 transition-colors group">
+                <td class="p-4">
+                  <div class="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <span class="material-symbols-outlined text-lg">bolt</span>
+                  </div>
+                </td>
+                <td class="p-4 font-bold text-slate-700 dark:text-slate-200">Invoice</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400">Prediction Group Alpha #2394</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400 font-mono text-xs">Today, 10:42 AM</td>
+                <td class="p-4 text-right font-mono font-bold text-red-500">- 5,000 sats</td>
+                <td class="p-4 text-right">
+<span class="inline-flex items-center px-2 py-1 rounded bg-green-500/10 text-green-500 text-xs font-bold">
+                                            Paid
+                                        </span>
+                </td>
+              </tr>
+              <!-- Row 2 -->
+              <tr class="border-b border-slate-100 dark:border-surface-dark-lighter hover:bg-slate-50 dark:hover:bg-surface-dark-lighter/20 transition-colors group">
+                <td class="p-4">
+                  <div class="size-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                    <span class="material-symbols-outlined text-lg">smart_toy</span>
+                  </div>
+                </td>
+                <td class="p-4 font-bold text-slate-700 dark:text-slate-200">Bot Trade</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400">Auto-Funded Hyperliquid Pos #882</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400 font-mono text-xs">Today, 09:15 AM</td>
+                <td class="p-4 text-right font-mono font-bold text-red-500">- 150,000 sats</td>
+                <td class="p-4 text-right">
+<span class="inline-flex items-center px-2 py-1 rounded bg-green-500/10 text-green-500 text-xs font-bold">
+                                            Executed
+                                        </span>
+                </td>
+              </tr>
+              <!-- Row 3 -->
+              <tr class="border-b border-slate-100 dark:border-surface-dark-lighter hover:bg-slate-50 dark:hover:bg-surface-dark-lighter/20 transition-colors group">
+                <td class="p-4">
+                  <div class="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <span class="material-symbols-outlined text-lg">bolt</span>
+                  </div>
+                </td>
+                <td class="p-4 font-bold text-slate-700 dark:text-slate-200">Invoice</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400">User Deposit from WhatsApp</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400 font-mono text-xs">Yesterday, 11:20 PM</td>
+                <td class="p-4 text-right font-mono font-bold text-primary">+ 25,000 sats</td>
+                <td class="p-4 text-right">
+<span class="inline-flex items-center px-2 py-1 rounded bg-green-500/10 text-green-500 text-xs font-bold">
+                                            Received
+                                        </span>
+                </td>
+              </tr>
+              <!-- Row 4 -->
+              <tr class="hover:bg-slate-50 dark:hover:bg-surface-dark-lighter/20 transition-colors group">
+                <td class="p-4">
+                  <div class="size-8 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
+                    <span class="material-symbols-outlined text-lg">warning</span>
+                  </div>
+                </td>
+                <td class="p-4 font-bold text-slate-700 dark:text-slate-200">Channel</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400">Force Close Attempt (Channel #91)</td>
+                <td class="p-4 text-slate-500 dark:text-slate-400 font-mono text-xs">Yesterday, 04:05 PM</td>
+                <td class="p-4 text-right font-mono font-bold text-slate-400">0 sats</td>
+                <td class="p-4 text-right">
+<span class="inline-flex items-center px-2 py-1 rounded bg-orange-500/10 text-orange-500 text-xs font-bold">
+                                            Pending
+                                        </span>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-slate-100 dark:border-surface-dark-lighter flex justify-center">
+            <button class="text-sm font-bold text-primary hover:underline">View All Transactions</button>
+          </div>
+        </div>
+      </div>
+      <!-- Terminal / Logs Peek (Decorative) -->
+      <div class="w-full bg-black rounded-lg p-4 font-mono text-xs text-green-500/80 border border-surface-dark-lighter opacity-80 mt-4">
+        <div class="flex gap-2 mb-2 border-b border-green-900/50 pb-2">
+          <span class="w-3 h-3 rounded-full bg-red-500"></span>
+          <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+          <span class="w-3 h-3 rounded-full bg-green-500"></span>
+          <span class="ml-2 text-green-700">user@satstrader-node:~</span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <p>&gt; initiating lightning_rpc connection...</p>
+          <p class="text-white">&gt; connection established (127.0.0.1:10009)</p>
+          <p>&gt; watching invoice subscription stream [active]</p>
+          <p>&gt; bot_trade_executor: checking binance spread...</p>
+          <p class="animate-pulse">&gt; _</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body></html>

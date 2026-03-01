@@ -3,8 +3,7 @@ name = "cassandrina-trading-bot"
 version = "0.1.0"
 description = "Gamified Bitcoin trading bot — scoring, strategy, trading engine"
 authors = ["Cassandrina"]
-readme = "README.md"
-packages = [{ include = "cassandrina" }]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"

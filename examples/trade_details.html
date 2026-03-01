@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Active Strategy &amp; Trade Details</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#19e680",
+            "primary-dark": "#12a85e",
+            "background-light": "#f6f8f7",
+            "background-dark": "#111814",
+            "surface-dark": "#1a2620",
+            "border-dark": "#293830",
+            "accent-green": "#0bda46",
+            "accent-red": "#fa5538",
+          },
+          fontFamily: {
+            display: ["Space Grotesk", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            "2xl": "1rem",
+            full: "9999px",
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      font-family: "Space Grotesk", sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 overflow-x-hidden">
+<div class="flex h-screen w-full flex-row overflow-hidden">
+  <!-- Sidebar -->
+  <div class="hidden lg:flex flex-col w-64 bg-background-dark border-r border-border-dark flex-shrink-0">
+    <div class="flex flex-col h-full justify-between p-4">
+      <div class="flex flex-col gap-6">
+        <div class="flex items-center gap-3 px-2">
+          <div class="bg-center bg-no-repeat bg-cover rounded-full h-10 w-10 border border-border-dark" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA44Yrch10YRFGg8RteplH6HBt7ceY1Xl53OEx6R50kr51WEF-OV9o8_FAKQMjvxYjX_mZs4KIGMHCh1lhIr6jjIlc09NE-QC6EFdaoXJrVHmy1LfYOrgBHFAQO8RJmFqH4gDGQW90VjFAsExq4CKseUwhAbdWASPk4SI3lJExkg-6rd78CXaw39ZctZ7CLkMD4uES1qIc0X-EBW611eKjEjcszMoh2wWORaWk1T1DzFP4afWd5OeysZjf5jNIu39scJ3T_m1KhVud9");'></div>
+          <div class="flex flex-col">
+            <h1 class="text-white text-base font-bold">CryptoBot</h1>
+            <p class="text-slate-400 text-xs font-medium uppercase tracking-wider">Pro Plan</p>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-dark transition-colors" href="#">
+            <span class="material-symbols-outlined text-[24px]">dashboard</span>
+            <span class="text-sm font-medium">Dashboard</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary transition-colors" href="#">
+            <span class="material-symbols-outlined text-[24px] fill-1">show_chart</span>
+            <span class="text-sm font-medium">Active Trades</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-dark transition-colors" href="#">
+            <span class="material-symbols-outlined text-[24px]">track_changes</span>
+            <span class="text-sm font-medium">Strategies</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-dark transition-colors" href="#">
+            <span class="material-symbols-outlined text-[24px]">emoji_events</span>
+            <span class="text-sm font-medium">Leaderboard</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-dark transition-colors" href="#">
+            <span class="material-symbols-outlined text-[24px]">settings</span>
+            <span class="text-sm font-medium">Settings</span>
+          </a>
+        </div>
+      </div>
+      <button class="flex w-full items-center justify-center rounded-lg h-12 bg-primary text-background-dark text-sm font-bold tracking-wide hover:bg-primary-dark transition-colors">
+        New Trade
+      </button>
+    </div>
+  </div>
+  <!-- Main Content -->
+  <div class="flex flex-col flex-1 h-full overflow-hidden bg-background-dark">
+    <!-- Top Header -->
+    <header class="flex items-center justify-between border-b border-border-dark px-6 py-4 bg-background-dark/50 backdrop-blur-md z-10">
+      <div class="flex items-center gap-4">
+        <button class="lg:hidden text-white">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="h-8 w-8 text-primary flex items-center justify-center bg-surface-dark rounded-full">
+          <span class="material-symbols-outlined text-[20px]">bolt</span>
+        </div>
+        <h2 class="text-white text-xl font-bold tracking-tight">Strategy Details</h2>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="flex items-center justify-center h-10 w-10 rounded-lg bg-surface-dark text-slate-300 hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-[20px]">notifications</span>
+        </button>
+        <button class="flex items-center justify-center h-10 w-10 rounded-lg bg-surface-dark text-slate-300 hover:text-white transition-colors">
+          <span class="material-symbols-outlined text-[20px]">chat</span>
+        </button>
+        <div class="hidden sm:block h-6 w-px bg-border-dark mx-2"></div>
+        <div class="bg-center bg-no-repeat bg-cover rounded-full h-9 w-9 border border-border-dark" data-alt="User Profile" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD6WfkyeppFLYeg7N28yxwYvqQdLi1NuH_ue4GprPBKHBfz8mzUcxd9G_rnn9CKNxuGKWpTAAbQ7ir4kci66hPWuV42z-0FVwrdnVDrWJAXQh9Sk2sRgFrcjn39zwHdWa-7zgK2Wm9Vf9oZmtNahUAUKbonRg_bbMYOZPxqnEhUzsCxD04eTP8nFTAIn0Q8AIbUm5nR7_02jfcibZWYs4iLOYUl5rl9qUpA5b3bUv3kvjhnbRDA2-bSeyjhJvGmpTYfAsPUA6WXvH7_");'></div>
+      </div>
+    </header>
+    <!-- Scrollable Content Area -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-8">
+      <div class="max-w-6xl mx-auto flex flex-col gap-8">
+        <!-- Strategy Header Section -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-2">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-3">
+              <h1 class="text-3xl md:text-4xl font-black text-white tracking-tight">Strategy B: Aggressive</h1>
+              <span class="px-3 py-1 rounded-full bg-accent-red/20 text-accent-red text-xs font-bold uppercase tracking-wider border border-accent-red/30">20x Lev</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-400">
+              <span class="material-symbols-outlined text-[18px]">currency_bitcoin</span>
+              <span class="text-sm font-medium">Bitcoin Perpetual • Binance</span>
+            </div>
+          </div>
+          <div class="flex gap-3 w-full md:w-auto">
+            <button class="flex-1 md:flex-none h-11 px-6 rounded-lg bg-surface-dark border border-border-dark text-white text-sm font-bold hover:bg-border-dark transition-colors">
+              Edit Strategy
+            </button>
+            <button class="flex-1 md:flex-none h-11 px-6 rounded-lg bg-accent-red/10 text-accent-red border border-accent-red/20 text-sm font-bold hover:bg-accent-red/20 transition-colors">
+              Close Position
+            </button>
+          </div>
+        </div>
+        <!-- Top Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Confidence Card -->
+          <div class="col-span-1 md:col-span-2 bg-surface-dark rounded-xl p-5 border border-border-dark">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-slate-300 font-medium text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px] text-primary">psychology</span>
+                Confidence Score
+              </h3>
+              <span class="text-xs text-slate-500 bg-black/20 px-2 py-1 rounded">Consensus: High</span>
+            </div>
+            <div class="flex gap-6 items-end">
+              <div class="flex-1">
+                <div class="flex justify-between text-sm mb-1">
+                  <span class="text-slate-400">User Confidence</span>
+                  <span class="text-white font-bold">60%</span>
+                </div>
+                <div class="h-2 w-full bg-black/40 rounded-full overflow-hidden">
+                  <div class="h-full bg-primary w-[60%] rounded-full"></div>
+                </div>
+                <p class="text-accent-green text-xs font-medium mt-1">+5% vs avg</p>
+              </div>
+              <div class="w-px h-12 bg-border-dark"></div>
+              <div class="flex-1">
+                <div class="flex justify-between text-sm mb-1">
+                  <span class="text-slate-400">Polymarket Score</span>
+                  <span class="text-white font-bold">64%</span>
+                </div>
+                <div class="h-2 w-full bg-black/40 rounded-full overflow-hidden">
+                  <div class="h-full bg-blue-500 w-[64%] rounded-full"></div>
+                </div>
+                <p class="text-accent-red text-xs font-medium mt-1">-2% dip</p>
+              </div>
+            </div>
+          </div>
+          <!-- PnL Card -->
+          <div class="col-span-1 bg-surface-dark rounded-xl p-5 border border-border-dark relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <h3 class="text-slate-300 font-medium text-sm mb-2">Unrealized PnL</h3>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-bold text-accent-green text-shadow-glow">+ $1,240.50</span>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+              <span class="bg-accent-green/10 text-accent-green px-2 py-0.5 rounded text-xs font-bold">+12.5%</span>
+              <span class="text-slate-500 text-xs">ROE</span>
+            </div>
+          </div>
+          <!-- Risk Meter -->
+          <div class="col-span-1 bg-surface-dark rounded-xl p-5 border border-border-dark flex flex-col justify-between">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-slate-300 font-medium text-sm">Liq. Distance</h3>
+              <span class="text-accent-green text-xs font-bold">Safe</span>
+            </div>
+            <div class="relative h-4 w-full bg-black/40 rounded-full mt-2 overflow-hidden">
+              <!-- Gradient bar -->
+              <div class="absolute inset-0 bg-gradient-to-r from-accent-red via-yellow-500 to-accent-green opacity-80"></div>
+              <!-- Marker -->
+              <div class="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" style="left: 75%;"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-500 mt-2 font-mono">
+              <span>$38k</span>
+              <span class="text-white font-bold">$40,200</span>
+              <span>$44k</span>
+            </div>
+          </div>
+        </div>
+        <!-- Chart & Details Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Main Chart Area -->
+          <div class="col-span-1 lg:col-span-2 bg-surface-dark rounded-xl border border-border-dark p-6">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 class="text-white font-bold text-lg">BTC/USDT Trade Path</h3>
+                <p class="text-slate-400 text-sm">Target: <span class="text-primary">$44,500</span> (Group Prediction)</p>
+              </div>
+              <div class="flex items-center gap-2 bg-black/20 p-1 rounded-lg">
+                <button class="px-3 py-1 rounded text-xs font-bold text-slate-400 hover:text-white transition">1H</button>
+                <button class="px-3 py-1 rounded text-xs font-bold bg-border-dark text-white shadow-sm">4H</button>
+                <button class="px-3 py-1 rounded text-xs font-bold text-slate-400 hover:text-white transition">1D</button>
+              </div>
+            </div>
+            <!-- Chart Visualization -->
+            <div class="relative h-[300px] w-full">
+              <!-- Current Price Label -->
+              <div class="absolute top-[40%] right-[20%] z-10 flex flex-col items-center">
+                <div class="bg-white text-background-dark text-xs font-bold px-2 py-1 rounded shadow-lg transform translate-y-full mb-2">
+                  Current: $42,150
+                </div>
+                <div class="w-3 h-3 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)] animate-pulse"></div>
+              </div>
+              <!-- Chart SVG -->
+              <svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 800 300">
+                <defs>
+                  <lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#19e680" stop-opacity="0.2"></stop>
+                    <stop offset="100%" stop-color="#19e680" stop-opacity="0"></stop>
+                  </lineargradient>
+                </defs>
+                <!-- Grid lines -->
+                <line stroke="#293830" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="800" y1="75" y2="75"></line>
+                <line stroke="#293830" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="800" y1="150" y2="150"></line>
+                <line stroke="#293830" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="800" y1="225" y2="225"></line>
+                <!-- Main Line -->
+                <path d="M0,220 C100,200 200,250 300,180 C400,110 500,160 600,120 C650,100 700,80 800,40" fill="url(#chartGradient)" stroke="#19e680" stroke-linecap="round" stroke-width="3"></path>
+                <!-- Dashed Projection Line -->
+                <path d="M600,120 C650,100 750,40 800,40" fill="none" stroke="#19e680" stroke-dasharray="6 6" stroke-opacity="0.6" stroke-width="2"></path>
+              </svg>
+            </div>
+          </div>
+          <!-- Position Details List -->
+          <div class="col-span-1 flex flex-col gap-4">
+            <div class="bg-surface-dark rounded-xl border border-border-dark p-5">
+              <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px] text-slate-400">info</span>
+                Position Stats
+              </h3>
+              <div class="space-y-4">
+                <div class="flex justify-between items-center border-b border-border-dark pb-3">
+                  <span class="text-slate-400 text-sm">Entry Price</span>
+                  <span class="text-white font-mono font-medium">$41,200.50</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-border-dark pb-3">
+                  <span class="text-slate-400 text-sm">Mark Price</span>
+                  <span class="text-primary font-mono font-medium">$42,150.00</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-border-dark pb-3">
+                  <span class="text-slate-400 text-sm">Liq. Price</span>
+                  <span class="text-accent-red font-mono font-medium">$40,200.00</span>
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                  <span class="text-slate-400 text-sm">Margin</span>
+                  <span class="text-white font-mono font-medium">2.5 BTC</span>
+                </div>
+              </div>
+            </div>
+            <!-- Prediction Source Card -->
+            <div class="bg-[#1a2620] rounded-xl border border-border-dark p-5 flex-1 flex flex-col">
+              <h3 class="text-white font-bold mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px] text-green-400">groups</span>
+                WhatsApp Alpha
+              </h3>
+              <div class="bg-black/20 rounded-lg p-3 mb-3 flex-1">
+                <div class="flex gap-2 mb-2">
+                  <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold">JD</div>
+                  <p class="text-slate-300 text-xs italic">"Breaking resistance at 42k, volume spiking. Sending it."</p>
+                </div>
+                <div class="flex gap-2">
+                  <div class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-[10px] text-white font-bold">AL</div>
+                  <p class="text-slate-300 text-xs italic">"Target $44.5k looks solid."</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-500">Source: VIP Signals Group</span>
+                <span class="text-primary">Live</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</body></html>

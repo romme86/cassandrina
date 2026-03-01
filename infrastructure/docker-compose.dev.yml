@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ============================================================
 # Cassandrina — Development Docker Compose
 # No resource limits; services exposed on localhost for debugging.
@@ -37,8 +35,9 @@ services:
     build:
       context: ..
       dockerfile: apps/webapp/Dockerfile
-      target: base
-    command: pnpm dev
+      target: deps
+    working_dir: /repo
+    command: sh -c "pnpm install --no-frozen-lockfile && pnpm --filter @cassandrina/webapp dev"
     env_file: ../.env.example
     environment:
       DATABASE_URL: postgresql://cassandrina:devpassword@timescaledb:5432/cassandrina
@@ -58,7 +57,7 @@ services:
   trading-bot:
     build:
       context: ../services/trading-bot
-    command: python -m pytest tests/ -v
+    command: sh -c "pip install --quiet pytest pytest-mock responses freezegun && python -m pytest tests/ -v"
     env_file: ../.env.example
     environment:
       DATABASE_URL: postgresql://cassandrina:devpassword@timescaledb:5432/cassandrina

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>TradeBot - History</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#19e680",
+            "primary-dark": "#0fa35a",
+            "background-light": "#f6f8f7",
+            "background-dark": "#112119",
+            "surface-dark": "#1a2c24",
+            "border-dark": "#2a4035",
+            "text-dim": "#9db8ab",
+            "positive": "#19e680",
+            "negative": "#ff5252"
+          },
+          fontFamily: {
+            display: ["Inter", "sans-serif"]
+          },
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display antialiased min-h-screen flex flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-border-dark bg-background-dark px-10 py-4 sticky top-0 z-50">
+  <div class="flex items-center gap-4 text-white">
+    <div class="size-8 text-primary flex items-center justify-center">
+      <span class="material-symbols-outlined !text-3xl">currency_bitcoin</span>
+    </div>
+    <h2 class="text-white text-xl font-bold leading-tight tracking-[-0.015em]">TradeBot</h2>
+  </div>
+  <div class="flex flex-1 justify-end gap-8">
+    <nav class="hidden md:flex items-center gap-9">
+      <a class="text-text-dim hover:text-white transition-colors text-sm font-medium leading-normal" href="#">Dashboard</a>
+      <a class="text-white text-sm font-medium leading-normal" href="#">History</a>
+      <a class="text-text-dim hover:text-white transition-colors text-sm font-medium leading-normal" href="#">Strategies</a>
+      <a class="text-text-dim hover:text-white transition-colors text-sm font-medium leading-normal" href="#">Settings</a>
+    </nav>
+    <div class="flex items-center gap-4">
+      <button class="flex items-center justify-center size-10 rounded-full bg-surface-dark hover:bg-border-dark text-text-dim hover:text-white transition-colors">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <div class="bg-center bg-no-repeat bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="User avatar profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCXgDlWYOuapbNM2Do9xYWi2dRDzopFMJL5mTwlGIX_UBVh6Wi195QljnqWJCrj_Whe-KCQBkncmCpZ7Ktr3yJDxYsplbAijBllzqS5JSkeiFyNTcuOMp0UCBXXTz4kOEW7Jbjeo2BXb5cs_GyScndP9t0cxxabseWjWO4sBuWb4mmYRR2xfF9uCj9jhSHAgZgwqDS127wTg3ug9eEkiTo-Nm3sx7P-sW16zRX8ZqwnNKiXULm4x-WsNtqTM4baiVplzjj8n0oTr_fx");'></div>
+    </div>
+  </div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col w-full max-w-[1440px] mx-auto px-4 md:px-10 py-8 gap-8">
+  <!-- Header & KPI Section -->
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+      <div class="flex flex-col gap-2">
+        <h1 class="text-white text-4xl font-black leading-tight tracking-[-0.033em]">Trade &amp; Prediction History</h1>
+        <p class="text-text-dim text-base font-normal max-w-2xl">Historical log of all past trades executed via Binance/Hyperliquid based on WhatsApp group consensus.</p>
+      </div>
+      <button class="flex items-center gap-2 bg-surface-dark border border-border-dark hover:bg-border-dark text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium">
+        <span class="material-symbols-outlined text-lg">download</span>
+        Export CSV
+      </button>
+    </div>
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="flex flex-col gap-1 rounded-xl p-6 border border-border-dark bg-surface-dark/50">
+        <div class="flex items-center gap-2 text-text-dim mb-2">
+          <span class="material-symbols-outlined text-lg">bar_chart</span>
+          <p class="text-sm font-medium uppercase tracking-wider">Total Trades</p>
+        </div>
+        <p class="text-white text-3xl font-bold">1,248</p>
+        <p class="text-positive text-sm font-medium flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">trending_up</span>
+          +12% vs last month
+        </p>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl p-6 border border-border-dark bg-surface-dark/50">
+        <div class="flex items-center gap-2 text-text-dim mb-2">
+          <span class="material-symbols-outlined text-lg">verified</span>
+          <p class="text-sm font-medium uppercase tracking-wider">Win Rate</p>
+        </div>
+        <p class="text-white text-3xl font-bold">68.4%</p>
+        <p class="text-positive text-sm font-medium flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">trending_up</span>
+          +2.5% vs avg
+        </p>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl p-6 border border-border-dark bg-surface-dark/50">
+        <div class="flex items-center gap-2 text-text-dim mb-2">
+          <span class="material-symbols-outlined text-lg">savings</span>
+          <p class="text-sm font-medium uppercase tracking-wider">Net Profit (Sats)</p>
+        </div>
+        <p class="text-positive text-3xl font-bold">+2.45M</p>
+        <p class="text-text-dim text-sm font-medium">≈ 0.0245 BTC</p>
+      </div>
+      <div class="flex flex-col gap-1 rounded-xl p-6 border border-border-dark bg-surface-dark/50">
+        <div class="flex items-center gap-2 text-text-dim mb-2">
+          <span class="material-symbols-outlined text-lg">psychology</span>
+          <p class="text-sm font-medium uppercase tracking-wider">Avg Confidence</p>
+        </div>
+        <p class="text-white text-3xl font-bold">82%</p>
+        <p class="text-text-dim text-sm font-medium">High conviction setup</p>
+      </div>
+    </div>
+  </div>
+  <!-- Main Content Grid: Sidebar Filters + Data Table -->
+  <div class="flex flex-col lg:flex-row gap-6 mt-4">
+    <!-- Filters Sidebar -->
+    <aside class="w-full lg:w-72 flex-shrink-0 flex flex-col gap-6">
+      <div class="bg-surface-dark border border-border-dark rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-white font-bold text-lg">Filters</h3>
+          <button class="text-text-dim text-xs hover:text-primary uppercase font-bold tracking-wider">Reset</button>
+        </div>
+        <div class="flex flex-col gap-5">
+          <!-- Search -->
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-dim text-lg">search</span>
+            <input class="w-full bg-background-dark border border-border-dark rounded-lg py-2 pl-10 pr-4 text-sm text-white placeholder-text-dim focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Search ID or Pair..." type="text"/>
+          </div>
+          <!-- Strategy Type -->
+          <div class="flex flex-col gap-2">
+            <label class="text-text-dim text-xs font-bold uppercase tracking-wider">Strategy Type</label>
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <div class="relative flex items-center">
+                  <input checked="" class="peer sr-only" type="checkbox"/>
+                  <div class="w-5 h-5 border-2 border-border-dark rounded bg-background-dark peer-checked:bg-primary peer-checked:border-primary transition-all"></div>
+                  <span class="material-symbols-outlined absolute inset-0 text-background-dark opacity-0 peer-checked:opacity-100 text-sm font-bold flex items-center justify-center pointer-events-none">check</span>
+                </div>
+                <span class="text-sm text-slate-300 group-hover:text-white">Trend Following (A)</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <div class="relative flex items-center">
+                  <input checked="" class="peer sr-only" type="checkbox"/>
+                  <div class="w-5 h-5 border-2 border-border-dark rounded bg-background-dark peer-checked:bg-primary peer-checked:border-primary transition-all"></div>
+                  <span class="material-symbols-outlined absolute inset-0 text-background-dark opacity-0 peer-checked:opacity-100 text-sm font-bold flex items-center justify-center pointer-events-none">check</span>
+                </div>
+                <span class="text-sm text-slate-300 group-hover:text-white">Mean Reversion (B)</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <div class="relative flex items-center">
+                  <input class="peer sr-only" type="checkbox"/>
+                  <div class="w-5 h-5 border-2 border-border-dark rounded bg-background-dark peer-checked:bg-primary peer-checked:border-primary transition-all"></div>
+                  <span class="material-symbols-outlined absolute inset-0 text-background-dark opacity-0 peer-checked:opacity-100 text-sm font-bold flex items-center justify-center pointer-events-none">check</span>
+                </div>
+                <span class="text-sm text-slate-300 group-hover:text-white">Breakout (C)</span>
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer group">
+                <div class="relative flex items-center">
+                  <input class="peer sr-only" type="checkbox"/>
+                  <div class="w-5 h-5 border-2 border-border-dark rounded bg-background-dark peer-checked:bg-primary peer-checked:border-primary transition-all"></div>
+                  <span class="material-symbols-outlined absolute inset-0 text-background-dark opacity-0 peer-checked:opacity-100 text-sm font-bold flex items-center justify-center pointer-events-none">check</span>
+                </div>
+                <span class="text-sm text-slate-300 group-hover:text-white">Scalp (D)</span>
+              </label>
+            </div>
+          </div>
+          <!-- Date Range -->
+          <div class="flex flex-col gap-2">
+            <label class="text-text-dim text-xs font-bold uppercase tracking-wider">Date Range</label>
+            <select class="w-full bg-background-dark border border-border-dark rounded-lg py-2 px-3 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+              <option>Last 30 Days</option>
+              <option>Last 7 Days</option>
+              <option>This Quarter</option>
+              <option>All Time</option>
+            </select>
+          </div>
+          <!-- Status -->
+          <div class="flex flex-col gap-2">
+            <label class="text-text-dim text-xs font-bold uppercase tracking-wider">Outcome</label>
+            <div class="flex flex-wrap gap-2">
+              <button class="bg-primary/20 hover:bg-primary/30 text-primary border border-primary/20 px-3 py-1.5 rounded text-sm font-medium transition-colors">Wins</button>
+              <button class="bg-surface-dark hover:bg-border-dark text-text-dim border border-border-dark px-3 py-1.5 rounded text-sm font-medium transition-colors">Losses</button>
+              <button class="bg-surface-dark hover:bg-border-dark text-text-dim border border-border-dark px-3 py-1.5 rounded text-sm font-medium transition-colors">Pending</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Ad/Promo Space or Mini Chart -->
+      <div class="bg-gradient-to-br from-surface-dark to-background-dark border border-border-dark rounded-xl p-5 relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+        <p class="text-white font-bold mb-1 relative z-10">WhatsApp Signals</p>
+        <p class="text-text-dim text-sm mb-4 relative z-10">Join the premium group for real-time consensus.</p>
+        <button class="w-full bg-white text-background-dark font-bold py-2 rounded hover:bg-slate-200 transition-colors relative z-10">View Group</button>
+      </div>
+    </aside>
+    <!-- Table Section -->
+    <div class="flex-1 min-w-0"> <!-- min-w-0 prevents flex item from overflowing -->
+      <div class="bg-surface-dark border border-border-dark rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+            <tr class="bg-background-dark border-b border-border-dark text-text-dim text-xs uppercase tracking-wider">
+              <th class="p-4 font-bold">Date / Time</th>
+              <th class="p-4 font-bold">Strategy</th>
+              <th class="p-4 font-bold">Target</th>
+              <th class="p-4 font-bold">Confidence</th>
+              <th class="p-4 font-bold text-right">Result</th>
+              <th class="p-4 font-bold text-right">PnL (Sats)</th>
+              <th class="p-4 font-bold text-center">Actions</th>
+            </tr>
+            </thead>
+            <tbody class="divide-y divide-border-dark text-sm">
+            <!-- Row 1: Win -->
+            <tr class="group hover:bg-background-dark/50 transition-colors">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 24, 2023</span>
+                  <span class="text-text-dim text-xs">14:32 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-purple-500"></span>
+                  <span class="text-slate-200">Trend A</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">BTC @ $34,200</span>
+                  <span class="text-text-dim text-xs">Long</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-primary w-[92%]"></div>
+                  </div>
+                  <span class="text-primary text-xs font-bold">92%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                                            WIN
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-positive font-bold font-mono">+45,000</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            <!-- Row 2: Win -->
+            <tr class="group hover:bg-background-dark/50 transition-colors">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 24, 2023</span>
+                  <span class="text-text-dim text-xs">09:15 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-blue-500"></span>
+                  <span class="text-slate-200">Mean Rev B</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">ETH @ $1,850</span>
+                  <span class="text-text-dim text-xs">Short</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-primary w-[75%]"></div>
+                  </div>
+                  <span class="text-primary text-xs font-bold">75%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                                            WIN
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-positive font-bold font-mono">+12,500</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            <!-- Row 3: Loss -->
+            <tr class="group hover:bg-background-dark/50 transition-colors">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 23, 2023</span>
+                  <span class="text-text-dim text-xs">22:40 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-orange-500"></span>
+                  <span class="text-slate-200">Scalp D</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">SOL @ $32.40</span>
+                  <span class="text-text-dim text-xs">Long</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-yellow-500 w-[60%]"></div>
+                  </div>
+                  <span class="text-yellow-500 text-xs font-bold">60%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                                            LOSS
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-red-400 font-bold font-mono">-5,200</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            <!-- Row 4: Win -->
+            <tr class="group hover:bg-background-dark/50 transition-colors">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 23, 2023</span>
+                  <span class="text-text-dim text-xs">18:05 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-purple-500"></span>
+                  <span class="text-slate-200">Trend A</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">BTC @ $33,800</span>
+                  <span class="text-text-dim text-xs">Long</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-primary w-[88%]"></div>
+                  </div>
+                  <span class="text-primary text-xs font-bold">88%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                                            WIN
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-positive font-bold font-mono">+22,100</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            <!-- Row 5: Pending/Open -->
+            <tr class="group hover:bg-background-dark/50 transition-colors bg-surface-dark/30">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 23, 2023</span>
+                  <span class="text-text-dim text-xs">16:00 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-teal-500"></span>
+                  <span class="text-slate-200">Breakout C</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">LINK @ $10.50</span>
+                  <span class="text-text-dim text-xs">Long</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-primary w-[80%]"></div>
+                  </div>
+                  <span class="text-primary text-xs font-bold">80%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-300 border border-slate-600">
+                                            OPEN
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-text-dim font-bold font-mono">--</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            <!-- Row 6: Loss -->
+            <tr class="group hover:bg-background-dark/50 transition-colors">
+              <td class="p-4 whitespace-nowrap">
+                <div class="flex flex-col">
+                  <span class="text-white font-medium">Oct 22, 2023</span>
+                  <span class="text-text-dim text-xs">08:20 UTC</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-blue-500"></span>
+                  <span class="text-slate-200">Mean Rev B</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col">
+                  <span class="text-slate-200 font-mono">BTC @ $33,100</span>
+                  <span class="text-text-dim text-xs">Short</span>
+                </div>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-16 h-1.5 bg-background-dark rounded-full overflow-hidden">
+                    <div class="h-full bg-yellow-500 w-[55%]"></div>
+                  </div>
+                  <span class="text-yellow-500 text-xs font-bold">55%</span>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                                            LOSS
+                                        </span>
+              </td>
+              <td class="p-4 text-right">
+                <span class="text-red-400 font-bold font-mono">-12,800</span>
+              </td>
+              <td class="p-4 text-center">
+                <button class="text-text-dim hover:text-white transition-colors">
+                  <span class="material-symbols-outlined text-lg">visibility</span>
+                </button>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <div class="flex items-center justify-between p-4 border-t border-border-dark bg-background-dark">
+          <span class="text-sm text-text-dim">Showing 1 to 6 of 1,248 entries</span>
+          <div class="flex gap-2">
+            <button class="flex items-center justify-center size-8 rounded border border-border-dark bg-surface-dark text-text-dim hover:text-white hover:bg-border-dark disabled:opacity-50">
+              <span class="material-symbols-outlined text-base">chevron_left</span>
+            </button>
+            <button class="flex items-center justify-center size-8 rounded border border-primary bg-primary/20 text-primary font-bold text-sm">1</button>
+            <button class="flex items-center justify-center size-8 rounded border border-border-dark bg-surface-dark text-text-dim hover:text-white hover:bg-border-dark text-sm">2</button>
+            <button class="flex items-center justify-center size-8 rounded border border-border-dark bg-surface-dark text-text-dim hover:text-white hover:bg-border-dark text-sm">3</button>
+            <span class="flex items-center justify-center size-8 text-text-dim">...</span>
+            <button class="flex items-center justify-center size-8 rounded border border-border-dark bg-surface-dark text-text-dim hover:text-white hover:bg-border-dark">
+              <span class="material-symbols-outlined text-base">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body></html>

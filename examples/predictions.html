@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Daily Prediction Cycle - SatsBot</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#19e680",
+            "background-light": "#f6f8f7",
+            "background-dark": "#112119",
+            "surface-dark": "#1a2c24", // Derived for cards
+            "border-dark": "#293830", // Derived for borders
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Navbar -->
+<header class="sticky top-0 z-50 w-full border-b border-solid border-slate-200 dark:border-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm px-4 lg:px-10 py-3">
+  <div class="max-w-[1400px] mx-auto flex items-center justify-between whitespace-nowrap">
+    <div class="flex items-center gap-4 text-slate-900 dark:text-white">
+      <div class="size-8 text-primary">
+        <svg class="w-full h-full" fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z" fill="currentColor"></path>
+        </svg>
+      </div>
+      <h2 class="text-xl font-bold leading-tight tracking-[-0.015em]">SatsBot</h2>
+    </div>
+    <div class="flex items-center gap-8 hidden md:flex">
+      <nav class="flex items-center gap-9">
+        <a class="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Dashboard</a>
+        <a class="text-primary text-sm font-bold leading-normal" href="#">Predictions</a>
+        <a class="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Leaderboard</a>
+        <a class="text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Settings</a>
+      </nav>
+      <div class="flex items-center gap-4">
+        <button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-6 bg-primary hover:bg-primary/90 transition-colors text-background-dark text-sm font-bold leading-normal tracking-[0.015em]">
+          <span class="truncate">Connect Wallet</span>
+        </button>
+        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDz5UHyycEwke2p1bk_LBIe9O8Jw6rK1U9_gmPmeVB77kDKrqC90txBukzuYIv8iIooWs7ZR-xlfbrdsOR4UvOE8tgJvamP4ibCSSlUVzU91pXSA_4uO56g-kceZ-NVSZggzRER5VD8qXHNLii3Bh2F-6Ie9W7WPFO2DZ-XwBZ6EQw9sl3xQ_qv-MABSPgSwcRl535u7givQRLnWLD4G3BCFOmT6lA054Yt_5YJrWYls6jYXwQFaeFyvS8aXb4jsRP_KDBNPTMNNfmd");'></div>
+      </div>
+    </div>
+    <!-- Mobile Menu Icon -->
+    <button class="md:hidden text-slate-900 dark:text-white">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+  </div>
+</header>
+<main class="flex-1 w-full max-w-[1400px] mx-auto p-4 md:p-8">
+  <!-- Header Section -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+    <div>
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-symbols-outlined text-primary">token</span>
+        <span class="text-primary text-sm font-bold tracking-wider uppercase">Active Cycle #842</span>
+      </div>
+      <h1 class="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">Morning Prediction Window</h1>
+      <p class="text-slate-500 dark:text-slate-400 max-w-xl">Submit your Bitcoin price targets before the timer ends to participate in today's automated execution strategy.</p>
+    </div>
+    <!-- Countdown Timer -->
+    <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark p-6 rounded-2xl shadow-lg flex gap-6">
+      <div class="flex flex-col items-center">
+        <span class="text-4xl font-bold text-primary tabular-nums">03</span>
+        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">Hours</span>
+      </div>
+      <div class="text-4xl font-bold text-slate-300 dark:text-slate-600">:</div>
+      <div class="flex flex-col items-center">
+        <span class="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">45</span>
+        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">Mins</span>
+      </div>
+      <div class="text-4xl font-bold text-slate-300 dark:text-slate-600">:</div>
+      <div class="flex flex-col items-center">
+        <span class="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">12</span>
+        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">Secs</span>
+      </div>
+    </div>
+  </div>
+  <!-- Main Grid Layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Column: Sentiment & Confidence -->
+    <div class="flex flex-col gap-6 lg:col-span-2">
+      <!-- Sentiment Analysis Card -->
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-2xl p-6 md:p-8">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">analytics</span>
+            Current Market Sentiment
+          </h2>
+          <div class="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold">
+            Avg Target: $68,420
+          </div>
+        </div>
+        <div class="flex flex-col gap-4">
+          <div class="flex justify-between items-end mb-1">
+            <div class="text-left">
+              <p class="text-2xl font-bold text-primary">65%</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 font-medium">Bullish</p>
+            </div>
+            <div class="text-right">
+              <p class="text-2xl font-bold text-rose-500">35%</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 font-medium">Bearish</p>
+            </div>
+          </div>
+          <!-- Sentiment Bar -->
+          <div class="h-6 w-full bg-rose-500/20 rounded-full overflow-hidden flex relative">
+            <!-- Bullish Segment -->
+            <div class="h-full bg-gradient-to-r from-green-400 to-primary flex items-center justify-center relative group" style="width: 65%;">
+              <div class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            </div>
+            <!-- Bearish Segment Background is container -->
+            <div class="absolute right-0 top-0 bottom-0 w-[35%] bg-rose-500 flex items-center justify-center"></div>
+          </div>
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-background-light dark:bg-background-dark p-4 rounded-xl border border-slate-100 dark:border-border-dark">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Predictions</p>
+              <p class="text-xl font-bold text-slate-900 dark:text-white">1,248</p>
+            </div>
+            <div class="bg-background-light dark:bg-background-dark p-4 rounded-xl border border-slate-100 dark:border-border-dark">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Vol. Weighted Avg</p>
+              <p class="text-xl font-bold text-slate-900 dark:text-white">$68,350</p>
+            </div>
+            <div class="bg-background-light dark:bg-background-dark p-4 rounded-xl border border-slate-100 dark:border-border-dark">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Top Predictor</p>
+              <div class="flex items-center gap-2">
+                <div class="size-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">JD</div>
+                <p class="text-base font-bold text-slate-900 dark:text-white">@JaneDoe</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Live Confidence Score -->
+      <div class="bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 rounded-2xl p-6 md:p-8 relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+        <div class="flex flex-col md:flex-row justify-between items-end md:items-center gap-6 relative z-10">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="material-symbols-outlined text-primary">bolt</span>
+              <h3 class="text-lg font-bold text-slate-900 dark:text-white">Confidence Score</h3>
+            </div>
+            <p class="text-slate-500 dark:text-slate-400 text-sm max-w-sm">Calculated live based on user consensus, historical accuracy, and volume.</p>
+          </div>
+          <div class="text-right">
+            <div class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">8.4<span class="text-2xl text-slate-400 dark:text-slate-500 font-medium">/10</span></div>
+            <div class="text-primary font-bold text-sm mt-1 flex items-center justify-end gap-1">
+              <span class="material-symbols-outlined text-sm">trending_up</span>
+              Strong Conviction
+            </div>
+          </div>
+        </div>
+        <!-- Progress bar for confidence -->
+        <div class="mt-6 h-2 w-full bg-background-dark/10 dark:bg-background-light/10 rounded-full overflow-hidden">
+          <div class="h-full bg-primary w-[84%] rounded-full shadow-[0_0_15px_rgba(25,230,128,0.5)]"></div>
+        </div>
+      </div>
+      <!-- Polymarket Feed -->
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <span class="material-symbols-outlined text-blue-400">public</span>
+            Polymarket Live Feed
+          </h3>
+          <a class="text-sm text-primary hover:underline" href="#">View All</a>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-3 bg-background-light dark:bg-background-dark rounded-xl border border-slate-100 dark:border-border-dark hover:border-primary/50 transition-colors cursor-pointer group">
+            <div class="flex items-center gap-3">
+              <div class="bg-orange-500/10 p-2 rounded-lg">
+                <span class="material-symbols-outlined text-orange-500">currency_bitcoin</span>
+              </div>
+              <div>
+                <p class="font-bold text-slate-900 dark:text-white text-sm group-hover:text-primary transition-colors">Bitcoin &gt; $70k in May?</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Vol: $4.2m</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-primary">Yes 62¢</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">+2.4%</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-3 bg-background-light dark:bg-background-dark rounded-xl border border-slate-100 dark:border-border-dark hover:border-primary/50 transition-colors cursor-pointer group">
+            <div class="flex items-center gap-3">
+              <div class="bg-blue-500/10 p-2 rounded-lg">
+                <span class="material-symbols-outlined text-blue-500">show_chart</span>
+              </div>
+              <div>
+                <p class="font-bold text-slate-900 dark:text-white text-sm group-hover:text-primary transition-colors">Fed Cut Rates in June?</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Vol: $12.5m</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-rose-400">No 78¢</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">-1.2%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Right Column: Payment & Users -->
+    <div class="flex flex-col gap-6 lg:col-span-1">
+      <!-- Payment Status Checklist -->
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-2xl flex flex-col h-full max-h-[800px]">
+        <div class="p-6 border-b border-slate-100 dark:border-border-dark flex justify-between items-center sticky top-0 bg-inherit rounded-t-2xl z-10">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Sats Status</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Daily entry fee: 500 sats</p>
+          </div>
+          <div class="radial-progress text-primary text-xs font-bold" style="--value:70; --size:3rem;">70%</div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+          <!-- Paid User -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCHui72zp8uurQpwwvK8O6Dj5HWpLR-W98c7Jm4wFhlPKYCqAK2Fa9TvITMHbBSO-cEP6p2Cs-EsFptFZpnXMSzy8XEmc0ls6nWkb2HURtGhtrM9WdX__cetuQ2fwWWNDqW6hIQvH1tO0BlNVpVZ1_Ka4HEnwTr20GgyC2SWkNQFYqRDc1XcX0rVCOZ1DY1if3FJ6poen1S-D9TkogtlFXO86somY4OMMfGCJYDh9cvmOZsgsXTymjmoQTKyx9uzjPWEpQnxGNz0WaB");'></div>
+                <div class="absolute -bottom-1 -right-1 bg-primary text-background-dark rounded-full p-0.5 border-2 border-surface-dark">
+                  <span class="material-symbols-outlined text-[10px] font-bold block">check</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">CryptoKing</p>
+                <p class="text-xs text-primary font-medium">Paid • 5 mins ago</p>
+              </div>
+            </div>
+            <span class="text-xs font-mono text-slate-400">TX: 8a...9f</span>
+          </div>
+          <!-- Paid User -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAB5oX4sgBLDWs7qAH1SCyjA1Jow_8nG7hChDa1m1HBEgN_HaZOz3haLyNP22XNyQgepWZNQxk2lMxbI9aFm-EjxhaY4sXl1azm3YfYSebxhqv-Gt2AbDiof0-eGz-p-lcikNMa0FWocwFTiYWOirYk4cOhm3hibeW8IElYAt8Ca4qIC9ViN96hj8W6cX09ALRgB8Sj5_B_o131TuemJrwn2fL629sW9A9jB8nUvoBh4AZXfW1zrWNXY7F2SUfxLFs0d4EmKY_DNdLr");'></div>
+                <div class="absolute -bottom-1 -right-1 bg-primary text-background-dark rounded-full p-0.5 border-2 border-surface-dark">
+                  <span class="material-symbols-outlined text-[10px] font-bold block">check</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">SatoshiNakamoto</p>
+                <p class="text-xs text-primary font-medium">Paid • 12 mins ago</p>
+              </div>
+            </div>
+            <span class="text-xs font-mono text-slate-400">TX: 3b...2c</span>
+          </div>
+          <!-- Pending User -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-background-light dark:bg-background-dark border border-slate-100 dark:border-border-dark opacity-75">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10 grayscale" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDYA59sQmu95NFJ43fvQHmZy9bqxaqHZ0yjWpi6kHA9fgOUhAUfJggLR2ckYuwDbbeZX0k8a6K2ExFh8oMMsNEMYlBz2f53LcBhpW4gnRbyx4YqZyfc_j97ixWtzgKdM49ge_BFaFgU2vejRf_CEuAegULBV3zJNCGUqlV9rZ0FFhXBEJczoWtG3a2wEgp7P0LjB7gMfGejpEIaF8rlbXSSWDGLXUE7qjmeGPoIIh0gfFVdebjBpaxmV1ur4SvprV3-huPWPhSWli0y");'></div>
+                <div class="absolute -bottom-1 -right-1 bg-slate-500 text-white rounded-full p-0.5 border-2 border-surface-dark">
+                  <span class="material-symbols-outlined text-[10px] font-bold block">schedule</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">MoonWalker</p>
+                <p class="text-xs text-orange-400 font-medium">Pending</p>
+              </div>
+            </div>
+            <button class="text-xs bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 transition-colors">
+              Nudge
+            </button>
+          </div>
+          <!-- Pending User -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-background-light dark:bg-background-dark border border-slate-100 dark:border-border-dark opacity-75">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10 grayscale" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBuZ_5rSp-N2nlgN2e2pWzq5Ph0lT-vMdvcuKjg0YgLpkB8mhqdioxcyCWQhdNsxscmtcRVVsL9wUhhTb16ekHOzjyJEqOeafQ2VyUqT2QbaNKd5HoUZydPWpLIUHU4GxDhySxH0pfnuGs4iRiFsqixwhv_N2M_Bhv2Fyo5JCDHok3BDmx1W6yzo_fblY8qslX4gz6srx7wUO1cwhvJ49H5Sgh42NUB3AOu20wWRsemwc8_LURLF0NCwd_mggOjNXA7I_QBHetrjIZH");'></div>
+                <div class="absolute -bottom-1 -right-1 bg-slate-500 text-white rounded-full p-0.5 border-2 border-surface-dark">
+                  <span class="material-symbols-outlined text-[10px] font-bold block">schedule</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">BitMax</p>
+                <p class="text-xs text-orange-400 font-medium">Pending</p>
+              </div>
+            </div>
+            <button class="text-xs bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 transition-colors">
+              Nudge
+            </button>
+          </div>
+          <!-- Pending User -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-background-light dark:bg-background-dark border border-slate-100 dark:border-border-dark opacity-75">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10 grayscale" data-alt="User Avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuARuMCDMzqAk4VqL73EVf_rzIsNFmSgtDMZcrLoDW50dFypgx1qnK0dHswIFJyD7Jah5bDV4NlA77qMoxUD48FUMfHV0Ich_h_2SWtT7iRAIPwl9WD-YdrbIy02UinCpaTgwi-P5rGF-5YdaUcsboxInQAz8h_N1X6Oo2ihM7kDwfOBrybuFBquvKFPyrfNfh1KwK3cL7u0nnYkxYgNsD9tBXSKt4Qy9shSfYMUzCLDZJiNLgKcX2jKOgkkmKMxas1n9i7LH4sSV9G1");'></div>
+                <div class="absolute -bottom-1 -right-1 bg-slate-500 text-white rounded-full p-0.5 border-2 border-surface-dark">
+                  <span class="material-symbols-outlined text-[10px] font-bold block">schedule</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">WhaleWatcher</p>
+                <p class="text-xs text-orange-400 font-medium">Pending</p>
+              </div>
+            </div>
+            <button class="text-xs bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 transition-colors">
+              Nudge
+            </button>
+          </div>
+        </div>
+        <div class="p-4 border-t border-slate-100 dark:border-border-dark bg-background-light dark:bg-background-dark/50 rounded-b-2xl">
+          <button class="w-full flex items-center justify-center gap-2 bg-slate-800 dark:bg-white text-white dark:text-background-dark font-bold py-3 px-4 rounded-xl hover:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-sm">notifications_active</span>
+            Remind All Pending
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<!-- Footer Stats / Connection Status -->
+<footer class="border-t border-slate-200 dark:border-border-dark bg-white/50 dark:bg-background-dark/50 mt-auto">
+  <div class="max-w-[1400px] mx-auto px-4 py-4 flex flex-wrap justify-center md:justify-between items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2">
+        <div class="size-2 rounded-full bg-green-500 animate-pulse"></div>
+        <span>System Operational</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">database</span>
+        <span>Binance Connected</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">hub</span>
+        <span>Hyperliquid Ready</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1">
+      <span>Next Execution:</span>
+      <span class="text-slate-900 dark:text-white font-bold">14:00 UTC</span>
+    </div>
+  </div>
+</footer>
+</body></html>

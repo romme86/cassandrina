@@ -1,7 +1,22 @@
+import { Coins, TrendingUp, Activity, Zap } from "lucide-react";
 import { query } from "@/lib/db";
 import type { Trade, PredictionRound } from "@cassandrina/shared";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { StatCard } from "@/components/stat-card";
+import { StrategyBadge } from "@/components/strategy-badge";
+import { PnlChart } from "@/components/pnl-chart";
+import { StrategyChart } from "@/components/strategy-chart";
+import { AutoRefresh } from "@/components/auto-refresh";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 async function getOpenTrades(): Promise<Trade[]> {
   try {
@@ -24,109 +39,212 @@ async function getCurrentRound(): Promise<PredictionRound | null> {
   }
 }
 
-function StrategyBadge({ strategy }: { strategy: string | null }) {
-  const colors: Record<string, string> = {
-    A: "bg-red-600",
-    B: "bg-orange-600",
-    C: "bg-yellow-600",
-    D: "bg-blue-600",
-    E: "bg-green-700",
-  };
-  if (!strategy) return null;
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-bold ${colors[strategy] ?? "bg-gray-600"}`}>
-      Strategy {strategy}
-    </span>
-  );
+async function getTotalSats(): Promise<number> {
+  try {
+    const rows = await query<{ total: number }>(
+      "SELECT COALESCE(SUM(delta_sats), 0)::int AS total FROM balance_entries"
+    );
+    return rows[0]?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getTodayPnl(): Promise<number> {
+  try {
+    const rows = await query<{ total: number }>(
+      `SELECT COALESCE(SUM(pnl_sats), 0)::int AS total FROM trades
+       WHERE status IN ('closed','liquidated') AND DATE(closed_at) = CURRENT_DATE`
+    );
+    return rows[0]?.total ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getPnlData() {
+  try {
+    return await query<{ day: string; daily_pnl: number; cumulative_pnl: number }>(
+      `SELECT DATE(opened_at) AS day,
+              SUM(pnl_sats)::int AS daily_pnl,
+              SUM(SUM(pnl_sats)) OVER (ORDER BY DATE(opened_at))::int AS cumulative_pnl
+       FROM trades
+       WHERE status IN ('closed','liquidated')
+         AND opened_at > NOW() - INTERVAL '30 days'
+       GROUP BY day ORDER BY day`
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function getStrategyData() {
+  try {
+    return await query<{
+      strategy: string;
+      total_trades: number;
+      wins: number;
+      avg_pnl_sats: number;
+      total_pnl_sats: number;
+    }>(
+      `SELECT strategy, COUNT(*)::int AS total_trades,
+              SUM(CASE WHEN pnl_sats > 0 THEN 1 ELSE 0 END)::int AS wins,
+              ROUND(AVG(pnl_sats))::int AS avg_pnl_sats,
+              SUM(pnl_sats)::int AS total_pnl_sats
+       FROM trades WHERE status IN ('closed','liquidated')
+       GROUP BY strategy ORDER BY strategy`
+    );
+  } catch {
+    return [];
+  }
+}
+
+function timeInTrade(openedAt: string): string {
+  const ms = Date.now() - new Date(openedAt).getTime();
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 export default async function DashboardPage() {
-  const [trades, round] = await Promise.all([getOpenTrades(), getCurrentRound()]);
-
-  const totalPnl = trades.reduce((sum, t) => sum + (t.pnl_sats ?? 0), 0);
+  const [trades, round, totalSats, todayPnl, pnlData, strategyData] =
+    await Promise.all([
+      getOpenTrades(),
+      getCurrentRound(),
+      getTotalSats(),
+      getTodayPnl(),
+      getPnlData(),
+      getStrategyData(),
+    ]);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-orange-400">Dashboard</h1>
+    <div className="space-y-6">
+      <AutoRefresh />
 
-      {/* Round Status */}
-      <section className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h2 className="text-lg font-semibold mb-4">Current Round</h2>
-        {round ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-400">Date</p>
-              <p className="font-mono">{round.question_date}</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Target Hour</p>
-              <p className="font-mono">{round.target_hour}:00 UTC</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Confidence</p>
-              <p className="font-mono">
-                {round.confidence_score != null
-                  ? `${round.confidence_score.toFixed(1)}%`
-                  : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-400">Strategy</p>
-              <StrategyBadge strategy={round.strategy_used} />
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-500">No open round</p>
-        )}
-      </section>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Portfolio (sats)"
+          value={totalSats.toLocaleString()}
+          icon={Coins}
+        />
+        <StatCard
+          label="Today P&L"
+          value={`${todayPnl >= 0 ? "+" : ""}${todayPnl.toLocaleString()} sats`}
+          icon={TrendingUp}
+          delta={todayPnl}
+          deltaLabel={`${todayPnl >= 0 ? "+" : ""}${todayPnl} sats`}
+        />
+        <StatCard
+          label="Confidence"
+          value={
+            round?.confidence_score != null
+              ? `${round.confidence_score.toFixed(1)}%`
+              : "—"
+          }
+          icon={Activity}
+        />
+        <StatCard
+          label="Active Strategy"
+          value={round?.strategy_used ? `Strategy ${round.strategy_used}` : "—"}
+          icon={Zap}
+        />
+      </div>
 
-      {/* Open Positions */}
-      <section className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h2 className="text-lg font-semibold mb-4">
-          Open Positions
-          <span className="ml-2 text-sm text-gray-400">
-            ({trades.length} active, {totalPnl >= 0 ? "+" : ""}{totalPnl} sats P&L)
-          </span>
-        </h2>
-        {trades.length === 0 ? (
-          <p className="text-gray-500">No open positions</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-gray-400 border-b border-gray-800">
-                <tr>
-                  <th className="text-left py-2">Strategy</th>
-                  <th className="text-left py-2">Direction</th>
-                  <th className="text-right py-2">Entry</th>
-                  <th className="text-right py-2">Target</th>
-                  <th className="text-right py-2">Leverage</th>
-                  <th className="text-right py-2">Sats</th>
-                  <th className="text-right py-2">P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t) => (
-                  <tr key={t.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                    <td className="py-2">
+      {/* Charts row */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              P&amp;L — 30-day window
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PnlChart data={pnlData} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Strategy Win Rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StrategyChart data={strategyData} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Open positions table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Open Positions
+            <span className="text-sm font-normal text-muted-foreground">
+              ({trades.length} active)
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {trades.length === 0 ? (
+            <p className="text-muted-foreground text-sm px-6 pb-6">No open positions</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Strategy</TableHead>
+                  <TableHead>Direction</TableHead>
+                  <TableHead className="text-right">Entry</TableHead>
+                  <TableHead className="text-right">Target</TableHead>
+                  <TableHead className="text-right">Leverage</TableHead>
+                  <TableHead className="text-right">Sats</TableHead>
+                  <TableHead className="text-right">P&amp;L</TableHead>
+                  <TableHead className="text-right">Time</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trades.map((t: Trade) => (
+                  <TableRow key={t.id}>
+                    <TableCell>
                       <StrategyBadge strategy={t.strategy} />
-                    </td>
-                    <td className={`py-2 ${t.direction === "long" ? "text-green-400" : "text-red-400"}`}>
+                    </TableCell>
+                    <TableCell
+                      className={
+                        t.direction === "long" ? "text-green-400" : "text-red-400"
+                      }
+                    >
                       {t.direction.toUpperCase()}
-                    </td>
-                    <td className="py-2 text-right font-mono">${t.entry_price.toLocaleString()}</td>
-                    <td className="py-2 text-right font-mono">${t.target_price.toLocaleString()}</td>
-                    <td className="py-2 text-right font-mono">{t.leverage}x</td>
-                    <td className="py-2 text-right font-mono">{t.sats_deployed.toLocaleString()}</td>
-                    <td className={`py-2 text-right font-mono ${(t.pnl_sats ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      {t.pnl_sats != null ? `${t.pnl_sats >= 0 ? "+" : ""}${t.pnl_sats}` : "—"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      ${t.entry_price.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      ${t.target_price.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">{t.leverage}x</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {t.sats_deployed.toLocaleString()}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-mono ${
+                        (t.pnl_sats ?? 0) >= 0 ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {t.pnl_sats != null
+                        ? `${t.pnl_sats >= 0 ? "+" : ""}${t.pnl_sats}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground text-xs">
+                      {timeInTrade(t.opened_at)}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

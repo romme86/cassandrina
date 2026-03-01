@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Bot Configuration &amp; Settings</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#19e680",
+            "background-light": "#f6f8f7",
+            "background-dark": "#112119",
+            "surface-dark": "#1c2621",
+            "surface-border": "#3c5347",
+            "text-muted": "#9db8ab",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"],
+            "body": ["Space Grotesk", "sans-serif"]
+          },
+          borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased selection:bg-primary selection:text-background-dark">
+<div class="relative flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark">
+  <!-- Sidebar -->
+  <div class="hidden w-64 flex-col border-r border-slate-200 dark:border-surface-border bg-white dark:bg-background-dark md:flex">
+    <div class="flex flex-col gap-6 p-6">
+      <div class="flex items-center gap-3">
+        <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20" data-alt="Abstract geometric avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAb4RydLvY5KXpdpBaKnb5jjhUwBzEGHRFxUMdU3BTi6G0NbkBFErMX5ZZ5WfNm6xUGjhYwZaadhZyHRoaEhgtxdHVvdSQkJEUgfgSxl2vZ4QUo8uOFQEae22R_gaZcQ-tkKdhmO2qx8_g-IE4IdgORE3jh7WtKwxuDktrKMNrzBWFTiqto8Jh8sOTHjFXFk6s65A9QwedCdS37EV6KXtXkrpzWOGRQo93hbRcIv-NKlRS4wB86IEF-Bl0Vsz5hQsE1ndB4AfD4mpdq");'></div>
+        <div class="flex flex-col">
+          <h1 class="text-base font-bold leading-normal dark:text-white text-slate-900">Admin Panel</h1>
+          <p class="text-sm font-normal leading-normal text-text-muted">Trading Bot v2.4</p>
+        </div>
+      </div>
+      <nav class="flex flex-col gap-2">
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-text-muted hover:bg-slate-100 dark:hover:bg-surface-dark dark:hover:text-white transition-colors" href="#">
+          <span class="material-symbols-outlined text-[24px]">dashboard</span>
+          <span class="text-sm font-medium">Dashboard</span>
+        </a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-text-muted hover:bg-slate-100 dark:hover:bg-surface-dark dark:hover:text-white transition-colors" href="#">
+          <span class="material-symbols-outlined text-[24px]">show_chart</span>
+          <span class="text-sm font-medium">Live Trades</span>
+        </a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-text-muted hover:bg-slate-100 dark:hover:bg-surface-dark dark:hover:text-white transition-colors" href="#">
+          <span class="material-symbols-outlined text-[24px]">trending_up</span>
+          <span class="text-sm font-medium">Strategy Performance</span>
+        </a>
+        <a class="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2 text-primary dark:text-primary" href="#">
+          <span class="material-symbols-outlined text-[24px] fill-1">settings</span>
+          <span class="text-sm font-medium">Bot Configuration</span>
+        </a>
+        <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-text-muted hover:bg-slate-100 dark:hover:bg-surface-dark dark:hover:text-white transition-colors" href="#">
+          <span class="material-symbols-outlined text-[24px]">group</span>
+          <span class="text-sm font-medium">User Management</span>
+        </a>
+      </nav>
+    </div>
+    <div class="mt-auto p-6">
+      <a class="flex items-center gap-3 rounded-lg px-3 py-2 text-text-muted hover:bg-red-500/10 hover:text-red-500 transition-colors" href="#">
+        <span class="material-symbols-outlined text-[24px]">logout</span>
+        <span class="text-sm font-medium">Logout</span>
+      </a>
+    </div>
+  </div>
+  <!-- Main Content -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+    <!-- Header for mobile/tablet alignment -->
+    <div class="flex items-center justify-between p-6 md:hidden border-b border-surface-border">
+      <h1 class="text-lg font-bold text-white">Bot Config</h1>
+      <button class="text-white">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-6 md:p-10 lg:p-16 scrollbar-thin scrollbar-thumb-surface-border scrollbar-track-transparent">
+      <div class="mx-auto max-w-5xl">
+        <header class="mb-10">
+          <div class="flex items-start justify-between">
+            <div>
+              <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white mb-2">Bot Configuration &amp; Settings</h1>
+              <p class="text-lg text-text-muted max-w-2xl">Manage API connections, strategy thresholds, automation triggers, and authorized WhatsApp users.</p>
+            </div>
+            <button class="hidden md:flex items-center gap-2 bg-primary hover:bg-green-400 text-background-dark px-5 py-2.5 rounded-lg font-bold transition-all shadow-lg shadow-primary/20">
+              <span class="material-symbols-outlined">save</span>
+              Save Changes
+            </button>
+          </div>
+        </header>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <!-- Left Column: API & Strategy -->
+          <div class="lg:col-span-7 flex flex-col gap-8">
+            <!-- API Connections Card -->
+            <section class="rounded-xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-dark p-6 md:p-8 shadow-sm">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                  <span class="material-symbols-outlined">api</span>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">API Connections</h2>
+              </div>
+              <div class="space-y-6">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-text-muted">Binance API Key</label>
+                    <span class="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">Connected</span>
+                  </div>
+                  <div class="relative group">
+                    <input class="w-full rounded-lg bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-surface-border text-slate-900 dark:text-white px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" readonly="" type="password" value="xk3920...29d02"/>
+                    <button class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span class="material-symbols-outlined text-[20px]">edit</span>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-text-muted">Binance Secret Key</label>
+                  </div>
+                  <div class="relative group">
+                    <input class="w-full rounded-lg bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-surface-border text-slate-900 dark:text-white px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none" readonly="" type="password" value="************************"/>
+                    <button class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span class="material-symbols-outlined text-[20px]">edit</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="h-px bg-slate-100 dark:bg-surface-border my-4"></div>
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-text-muted">Hyperliquid API Key</label>
+                    <span class="text-xs text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">Pending</span>
+                  </div>
+                  <input class="w-full rounded-lg bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-surface-border text-slate-900 dark:text-white px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-slate-500" placeholder="Enter API Key" type="text"/>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-text-muted">Hyperliquid Secret Key</label>
+                  </div>
+                  <input class="w-full rounded-lg bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-surface-border text-slate-900 dark:text-white px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-slate-500" placeholder="Enter Secret Key" type="password"/>
+                </div>
+              </div>
+            </section>
+            <!-- Strategy Parameters Card -->
+            <section class="rounded-xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-dark p-6 md:p-8 shadow-sm">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                    <span class="material-symbols-outlined">tune</span>
+                  </div>
+                  <h2 class="text-xl font-bold text-slate-900 dark:text-white">Strategy Thresholds</h2>
+                </div>
+                <button class="text-xs font-bold text-primary hover:text-green-400 uppercase tracking-wider">Reset Defaults</button>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-white">Strategy A (Scalp)</span>
+                    <span class="text-sm font-bold text-primary">70%</span>
+                  </div>
+                  <input class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="70"/>
+                  <p class="text-xs text-text-muted">Minimum confidence to trigger scalping trades.</p>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-white">Strategy B (Swing)</span>
+                    <span class="text-sm font-bold text-primary">65%</span>
+                  </div>
+                  <input class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="65"/>
+                  <p class="text-xs text-text-muted">Confidence threshold for multi-day swings.</p>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-white">Strategy C (Arbitrage)</span>
+                    <span class="text-sm font-bold text-primary">82%</span>
+                  </div>
+                  <input class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="82"/>
+                  <p class="text-xs text-text-muted">Requires high confidence due to execution risk.</p>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-medium text-white">Strategy D (News)</span>
+                    <span class="text-sm font-bold text-primary">60%</span>
+                  </div>
+                  <input class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="60"/>
+                  <p class="text-xs text-text-muted">Lower threshold for high-volatility events.</p>
+                </div>
+              </div>
+            </section>
+          </div>
+          <!-- Right Column: Triggers & Users -->
+          <div class="lg:col-span-5 flex flex-col gap-8">
+            <!-- Bot Triggers Card -->
+            <section class="rounded-xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-dark p-6 md:p-8 shadow-sm">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="p-2 rounded-lg bg-yellow-500/10 text-yellow-400">
+                  <span class="material-symbols-outlined">bolt</span>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Bot Triggers</h2>
+              </div>
+              <div class="flex flex-col gap-5">
+                <div class="flex items-center justify-between p-4 rounded-lg bg-background-light dark:bg-background-dark border border-transparent hover:border-surface-border transition-colors">
+                  <div class="flex flex-col">
+                    <span class="text-sm font-bold text-slate-900 dark:text-white">WhatsApp Notifications</span>
+                    <span class="text-xs text-text-muted mt-1">Send alerts to group on execution</span>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input checked="" class="sr-only peer" type="checkbox" value=""/>
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <div class="flex items-center justify-between p-4 rounded-lg bg-background-light dark:bg-background-dark border border-transparent hover:border-surface-border transition-colors">
+                  <div class="flex flex-col">
+                    <span class="text-sm font-bold text-slate-900 dark:text-white">Auto-Execute Trades</span>
+                    <span class="text-xs text-text-muted mt-1">Automatically place orders on exchanges</span>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input checked="" class="sr-only peer" type="checkbox" value=""/>
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <div class="flex flex-col p-4 rounded-lg bg-background-light dark:bg-background-dark border border-transparent hover:border-surface-border transition-colors">
+                  <div class="flex justify-between mb-3">
+                    <span class="text-sm font-bold text-slate-900 dark:text-white">Prediction Window</span>
+                    <span class="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">15m</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button class="flex-1 py-1.5 text-xs font-medium rounded bg-slate-200 dark:bg-surface-border text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">5m</button>
+                    <button class="flex-1 py-1.5 text-xs font-bold rounded bg-primary text-background-dark">15m</button>
+                    <button class="flex-1 py-1.5 text-xs font-medium rounded bg-slate-200 dark:bg-surface-border text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">1h</button>
+                    <button class="flex-1 py-1.5 text-xs font-medium rounded bg-slate-200 dark:bg-surface-border text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">4h</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <!-- User Management Card -->
+            <section class="rounded-xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-dark p-6 md:p-8 shadow-sm flex-1 flex flex-col">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 rounded-lg bg-green-500/10 text-green-400">
+                    <span class="material-symbols-outlined">chat</span>
+                  </div>
+                  <h2 class="text-xl font-bold text-slate-900 dark:text-white">WhatsApp Access</h2>
+                </div>
+                <button class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-primary transition-colors">
+                  <span class="material-symbols-outlined">add</span>
+                </button>
+              </div>
+              <div class="flex flex-col gap-3 flex-1 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-surface-border scrollbar-track-transparent">
+                <!-- User Item -->
+                <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-surface-border hover:bg-background-light dark:hover:bg-background-dark transition-colors group">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white">JD</div>
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-slate-900 dark:text-white">John Doe</span>
+                      <span class="text-xs text-text-muted">+1 (555) 123-4567</span>
+                    </div>
+                  </div>
+                  <button class="text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                  </button>
+                </div>
+                <!-- User Item -->
+                <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-surface-border hover:bg-background-light dark:hover:bg-background-dark transition-colors group">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center text-xs font-bold text-white">AS</div>
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-slate-900 dark:text-white">Alice Smith</span>
+                      <span class="text-xs text-text-muted">+44 7700 900077</span>
+                    </div>
+                  </div>
+                  <button class="text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                  </button>
+                </div>
+                <!-- User Item -->
+                <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-surface-border hover:bg-background-light dark:hover:bg-background-dark transition-colors group">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-xs font-bold text-white">MK</div>
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-slate-900 dark:text-white">Mike K.</span>
+                      <span class="text-xs text-text-muted">+1 (555) 987-6543</span>
+                    </div>
+                  </div>
+                  <button class="text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                  </button>
+                </div>
+                <div class="mt-2 pt-3 border-t border-slate-100 dark:border-surface-border">
+                  <div class="flex gap-2">
+                    <input class="flex-1 rounded bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-surface-border text-sm px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Add WhatsApp ID..." type="text"/>
+                    <button class="bg-primary hover:bg-green-400 text-background-dark text-sm font-bold px-3 py-2 rounded transition-colors">Add</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+        <!-- Floating save button for mobile -->
+        <div class="fixed bottom-6 right-6 md:hidden z-10">
+          <button class="flex items-center justify-center w-14 h-14 bg-primary text-background-dark rounded-full shadow-lg shadow-primary/30">
+            <span class="material-symbols-outlined text-[28px]">save</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body></html>

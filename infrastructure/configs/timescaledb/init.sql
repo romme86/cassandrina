@@ -46,11 +46,16 @@ CREATE TABLE IF NOT EXISTS predictions (
     lightning_invoice   TEXT,
     paid                BOOL NOT NULL DEFAULT FALSE,
     paid_at             TIMESTAMPTZ,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT predictions_round_user_unique UNIQUE (round_id, user_id)
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 SELECT create_hypertable('predictions', 'created_at', if_not_exists => TRUE);
+
+-- One prediction per user per round — enforced at application layer.
+-- TimescaleDB requires the partition column in unique indexes, so we
+-- use a plain index here; duplicate checks happen in the API route.
+CREATE INDEX IF NOT EXISTS predictions_round_user_idx
+    ON predictions(round_id, user_id);
 
 -- ============================================================
 -- Trades opened by the bot

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>SocialTradeBot Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#19e680", // Neon Green
+            "primary-dim": "#116b41",
+            "background-light": "#f6f8f7",
+            "background-dark": "#0a0f0c", // Deep dark background
+            "surface-dark": "#131c17", // Slightly lighter for cards
+            "surface-highlight": "#1c2922", // Hover states
+            accent: "#0bda46",
+            danger: "#ff4d4d",
+          },
+          fontFamily: {
+            display: ["Space Grotesk", "sans-serif"],
+            body: ["Noto Sans", "sans-serif"],
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem",
+            lg: "1rem",
+            xl: "1.5rem",
+            full: "9999px",
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar for a cleaner look */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a0f0c;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1c2922;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #19e680;
+    }
+    .neon-shadow {
+      box-shadow: 0 0 10px rgba(25, 230, 128, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-body overflow-hidden">
+<div class="flex h-screen w-full">
+  <!-- Sidebar -->
+  <aside class="flex w-64 flex-col border-r border-white/5 bg-surface-dark transition-all">
+    <div class="flex flex-col h-full justify-between p-4">
+      <div class="flex flex-col gap-6">
+        <!-- Brand -->
+        <div class="flex items-center gap-3 px-2">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+            <span class="material-symbols-outlined">smart_toy</span>
+          </div>
+          <div class="flex flex-col">
+            <h1 class="font-display text-lg font-bold text-white tracking-tight">SocialTradeBot</h1>
+            <p class="text-xs text-slate-400">v2.1 Beta</p>
+          </div>
+        </div>
+        <!-- Navigation -->
+        <nav class="flex flex-col gap-1">
+          <a class="group flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-3 text-primary ring-1 ring-primary/20 transition-all" href="#">
+            <span class="material-symbols-outlined filled">dashboard</span>
+            <span class="font-display text-sm font-medium">Dashboard</span>
+          </a>
+          <a class="group flex items-center gap-3 rounded-lg px-3 py-3 text-slate-400 hover:bg-surface-highlight hover:text-white transition-all" href="#">
+            <span class="material-symbols-outlined">leaderboard</span>
+            <span class="font-display text-sm font-medium">Leaderboard</span>
+          </a>
+          <a class="group flex items-center gap-3 rounded-lg px-3 py-3 text-slate-400 hover:bg-surface-highlight hover:text-white transition-all" href="#">
+            <span class="material-symbols-outlined">candlestick_chart</span>
+            <span class="font-display text-sm font-medium">Trade Details</span>
+          </a>
+          <a class="group flex items-center gap-3 rounded-lg px-3 py-3 text-slate-400 hover:bg-surface-highlight hover:text-white transition-all" href="#">
+            <span class="material-symbols-outlined">history</span>
+            <span class="font-display text-sm font-medium">History</span>
+          </a>
+          <a class="group flex items-center gap-3 rounded-lg px-3 py-3 text-slate-400 hover:bg-surface-highlight hover:text-white transition-all" href="#">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="font-display text-sm font-medium">Settings</span>
+          </a>
+        </nav>
+      </div>
+      <!-- Bottom User Profile -->
+      <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-surface-highlight/30 p-3">
+        <div class="h-10 w-10 overflow-hidden rounded-full bg-slate-700" data-alt="User Avatar">
+          <img alt="User Avatar" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9xZLVk9dIyFmEftYI1hhceQZWI9moIEpuQy4S2xXriR_6keFwqhK-dnZ8IFUUeK58_uOXvkxnBKWK9XzljcssTA_IV_bUS0VPJfKjoSoR79kAx9Sa-h8wXD8Qiqt4vkIgxaEfnWRINbZS7HVtBB8pUGZCIq_MvhV7dAHPa-3SGEdJ-8MjskB-gKuV_ptq6pfz0lXdnCDVvO5QAX2gQ2mhvmCVFBr7-vT_enmUJmYLBGST5LTgbJGlMJ4Q6IM91Jt46wtBxMAVhNcB"/>
+        </div>
+        <div class="flex flex-col overflow-hidden">
+          <p class="truncate text-sm font-medium text-white">AlexCrypto99</p>
+          <p class="truncate text-xs text-slate-400">Pro Member</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <!-- Main Content -->
+  <main class="flex-1 overflow-y-auto bg-background-dark p-6 lg:p-10">
+    <div class="mx-auto flex max-w-[1280px] flex-col gap-8">
+      <!-- Header -->
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="font-display text-3xl font-bold text-white">Market Overview</h2>
+          <p class="text-slate-400">Live data from WhatsApp consensus &amp; Polymarket sentiment.</p>
+        </div>
+        <div class="flex items-center gap-3">
+<span class="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-medium text-primary">
+<span class="relative flex h-2 w-2">
+<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+</span>
+                            Bot Active
+                        </span>
+          <button class="flex items-center justify-center rounded-full bg-surface-highlight p-2 text-slate-400 hover:bg-surface-highlight/80 hover:text-white">
+            <span class="material-symbols-outlined">notifications</span>
+          </button>
+        </div>
+      </div>
+      <!-- Top Row: Summary Cards -->
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <!-- Total Pool Value -->
+        <div class="group relative overflow-hidden rounded-2xl bg-surface-dark border border-white/5 p-6 hover:border-primary/30 transition-all">
+          <div class="absolute right-0 top-0 h-24 w-24 translate-x-8 translate-y--8 rounded-full bg-primary/5 blur-3xl"></div>
+          <div class="flex items-center justify-between">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-highlight text-primary">
+              <span class="material-symbols-outlined">account_balance_wallet</span>
+            </div>
+            <span class="flex items-center gap-1 text-sm font-medium text-primary">
+                                +12.5% <span class="material-symbols-outlined text-base">trending_up</span>
+</span>
+          </div>
+          <div class="mt-4">
+            <p class="text-sm font-medium text-slate-400">Total Pool Value</p>
+            <h3 class="font-display text-2xl font-bold text-white mt-1">2.45 BTC</h3>
+            <p class="text-xs text-slate-500 mt-1">≈ 245,000,000 Sats</p>
+          </div>
+        </div>
+        <!-- Active Strategy -->
+        <div class="group relative overflow-hidden rounded-2xl bg-surface-dark border border-white/5 p-6 hover:border-primary/30 transition-all">
+          <div class="absolute right-0 top-0 h-24 w-24 translate-x-8 translate-y--8 rounded-full bg-orange-500/5 blur-3xl"></div>
+          <div class="flex items-center justify-between">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-highlight text-orange-400">
+              <span class="material-symbols-outlined">bolt</span>
+            </div>
+            <span class="rounded bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-400">High Risk</span>
+          </div>
+          <div class="mt-4">
+            <p class="text-sm font-medium text-slate-400">Active Strategy</p>
+            <h3 class="font-display text-2xl font-bold text-white mt-1">Aggressive 20x Long</h3>
+            <p class="text-xs text-slate-500 mt-1">Targeting Breakout @ 43k</p>
+          </div>
+        </div>
+        <!-- Next Prediction Window -->
+        <div class="group relative overflow-hidden rounded-2xl bg-surface-dark border border-white/5 p-6 hover:border-primary/30 transition-all">
+          <div class="flex flex-col h-full justify-between">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-medium text-slate-400">Prediction Window Closes</p>
+              <span class="material-symbols-outlined text-slate-500">timer</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-2">
+              <div class="flex flex-col items-center rounded bg-surface-highlight p-2 flex-1">
+                <span class="font-display text-xl font-bold text-white">00</span>
+                <span class="text-[10px] text-slate-400 uppercase">Hr</span>
+              </div>
+              <span class="text-white font-bold">:</span>
+              <div class="flex flex-col items-center rounded bg-surface-highlight p-2 flex-1">
+                <span class="font-display text-xl font-bold text-white">12</span>
+                <span class="text-[10px] text-slate-400 uppercase">Min</span>
+              </div>
+              <span class="text-white font-bold">:</span>
+              <div class="flex flex-col items-center rounded bg-surface-highlight p-2 flex-1">
+                <span class="font-display text-xl font-bold text-primary animate-pulse">35</span>
+                <span class="text-[10px] text-slate-400 uppercase">Sec</span>
+              </div>
+            </div>
+            <div class="mt-3 w-full bg-surface-highlight h-1.5 rounded-full overflow-hidden">
+              <div class="bg-primary h-full rounded-full" style="width: 25%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Middle Section: Chart & Gauge -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Chart -->
+        <div class="lg:col-span-2 rounded-2xl bg-surface-dark border border-white/5 p-6 flex flex-col">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <h3 class="font-display text-lg font-bold text-white">BTC/USDT Position</h3>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-2xl font-bold text-white tracking-tight">$42,150</span>
+                <span class="text-sm font-medium text-primary">+2.4%</span>
+                <span class="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase text-primary tracking-wider">Live</span>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button class="rounded-lg bg-surface-highlight px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10">1H</button>
+              <button class="rounded-lg bg-primary/20 px-3 py-1.5 text-xs font-medium text-primary ring-1 ring-primary/30">4H</button>
+              <button class="rounded-lg bg-surface-highlight px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10">1D</button>
+            </div>
+          </div>
+          <!-- Chart Area -->
+          <div class="relative h-[250px] w-full rounded-lg bg-surface-highlight/20 p-4 overflow-hidden border border-white/5">
+            <!-- Simulated Chart Content -->
+            <svg class="h-full w-full overflow-visible" preserveaspectratio="none" viewbox="0 0 100 50">
+              <!-- Grid Lines -->
+              <line stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.2" x1="0" x2="100" y1="10" y2="10"></line>
+              <line stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.2" x1="0" x2="100" y1="25" y2="25"></line>
+              <line stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.2" x1="0" x2="100" y1="40" y2="40"></line>
+              <!-- Entry Line -->
+              <line stroke="#94a3b8" stroke-dasharray="2" stroke-width="0.3" x1="0" x2="100" y1="35" y2="35"></line>
+              <text fill="#94a3b8" font-size="2" x="2" y="34">Entry $41,200</text>
+              <!-- Target Line -->
+              <line stroke="#19e680" stroke-width="0.3" x1="0" x2="100" y1="15" y2="15"></line>
+              <text fill="#19e680" font-size="2" x="2" y="14">Target $43,000</text>
+              <!-- Price Curve -->
+              <path d="M0 35 Q 20 38, 40 30 T 70 25 T 100 18" fill="none" stroke="#19e680" stroke-width="0.8"></path>
+              <path d="M0 35 Q 20 38, 40 30 T 70 25 T 100 18 V 50 H 0 Z" fill="url(#gradientChart)" opacity="0.2"></path>
+              <defs>
+                <lineargradient id="gradientChart" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#19e680"></stop>
+                  <stop offset="100%" stop-color="#19e680" stop-opacity="0"></stop>
+                </lineargradient>
+              </defs>
+              <!-- Current Price Indicator -->
+              <circle cx="100" cy="18" fill="#19e680" r="1.5"></circle>
+            </svg>
+          </div>
+          <div class="mt-4 flex justify-between px-2 text-xs text-slate-500">
+            <span>10:00 AM</span>
+            <span>02:00 PM</span>
+            <span>06:00 PM</span>
+            <span>10:00 PM</span>
+          </div>
+        </div>
+        <!-- Confidence Gauge & Stats -->
+        <div class="flex flex-col gap-6">
+          <!-- Gauge Card -->
+          <div class="flex-1 rounded-2xl bg-surface-dark border border-white/5 p-6 flex flex-col justify-center items-center relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none"></div>
+            <h3 class="font-display text-base font-medium text-slate-300 mb-4 z-10 w-full text-center">Confidence Score</h3>
+            <div class="relative h-40 w-40 flex items-center justify-center">
+              <!-- Circular Progress Background -->
+              <svg class="h-full w-full rotate-[-90deg]" viewbox="0 0 100 100">
+                <circle cx="50" cy="50" fill="none" r="45" stroke="#1c2922" stroke-width="10"></circle>
+                <!-- Progress (62%) -->
+                <circle cx="50" cy="50" fill="none" r="45" stroke="#19e680" stroke-dasharray="283" stroke-dashoffset="107" stroke-linecap="round" stroke-width="10"></circle>
+              </svg>
+              <div class="absolute flex flex-col items-center">
+                <span class="font-display text-4xl font-bold text-white">62%</span>
+                <span class="text-xs text-primary font-medium">Bullish</span>
+              </div>
+            </div>
+            <div class="mt-6 w-full space-y-3 z-10">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-400">Polymarket</span>
+                <span class="text-white font-medium">58% Long</span>
+              </div>
+              <div class="h-1.5 w-full rounded-full bg-surface-highlight">
+                <div class="h-full rounded-full bg-slate-400" style="width: 58%"></div>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-400">Group Sentiment</span>
+                <span class="text-white font-medium">75% Long</span>
+              </div>
+              <div class="h-1.5 w-full rounded-full bg-surface-highlight">
+                <div class="h-full rounded-full bg-primary" style="width: 75%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Bottom Section: Feed & Mini Stats -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Activity Feed -->
+        <div class="lg:col-span-2 rounded-2xl bg-surface-dark border border-white/5 p-6 h-[320px] flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-display text-lg font-bold text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">chat</span>
+              Live Feed
+            </h3>
+            <span class="flex items-center gap-1.5 text-xs text-primary animate-pulse">
+<span class="h-2 w-2 rounded-full bg-primary"></span>
+                                Updating
+                            </span>
+          </div>
+          <div class="flex-1 overflow-y-auto pr-2 space-y-3">
+            <!-- Feed Item -->
+            <div class="flex items-start gap-3 rounded-lg bg-surface-highlight/30 p-3 border border-white/5">
+              <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
+                <span class="material-symbols-outlined text-sm">smart_toy</span>
+              </div>
+              <div>
+                <p class="text-sm text-slate-200"><span class="font-bold text-white">Bot</span> opened <span class="text-orange-400">Strategy A</span> position</p>
+                <p class="text-xs text-slate-500 mt-1">2 mins ago • Binance Execution</p>
+              </div>
+            </div>
+            <!-- Feed Item -->
+            <div class="flex items-start gap-3 rounded-lg bg-surface-highlight/30 p-3 border border-white/5">
+              <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-sm">payments</span>
+              </div>
+              <div>
+                <p class="text-sm text-slate-200"><span class="font-bold text-white">User_X99</span> contributed <span class="text-primary">2000 sats</span> to the pool</p>
+                <p class="text-xs text-slate-500 mt-1">5 mins ago • Lightning Network</p>
+              </div>
+            </div>
+            <!-- Feed Item -->
+            <div class="flex items-start gap-3 rounded-lg bg-surface-highlight/30 p-3 border border-white/5">
+              <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-400">
+                <span class="material-symbols-outlined text-sm">how_to_vote</span>
+              </div>
+              <div>
+                <p class="text-sm text-slate-200"><span class="font-bold text-white">SarahB</span> voted <span class="text-green-400 font-bold">LONG</span> on BTC</p>
+                <p class="text-xs text-slate-500 mt-1">12 mins ago • WhatsApp Group</p>
+              </div>
+            </div>
+            <!-- Feed Item -->
+            <div class="flex items-start gap-3 rounded-lg bg-surface-highlight/30 p-3 border border-white/5">
+              <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-400">
+                <span class="material-symbols-outlined text-sm">warning</span>
+              </div>
+              <div>
+                <p class="text-sm text-slate-200">Volatility Alert: High whale movement detected</p>
+                <p class="text-xs text-slate-500 mt-1">25 mins ago • System Alert</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Mini Charts / Stats Grid -->
+        <div class="flex flex-col gap-4">
+          <!-- Accuracy Trend -->
+          <div class="flex-1 rounded-2xl bg-surface-dark border border-white/5 p-5 flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm font-medium text-slate-400">Group Accuracy</p>
+                <h4 class="text-xl font-bold text-white mt-1">78.4%</h4>
+              </div>
+              <span class="material-symbols-outlined text-primary">check_circle</span>
+            </div>
+            <div class="h-12 w-full mt-4 flex items-end gap-1">
+              <!-- Bars for chart -->
+              <div class="w-full bg-primary/20 rounded-t-sm h-[40%]"></div>
+              <div class="w-full bg-primary/20 rounded-t-sm h-[60%]"></div>
+              <div class="w-full bg-primary/20 rounded-t-sm h-[50%]"></div>
+              <div class="w-full bg-primary/20 rounded-t-sm h-[80%]"></div>
+              <div class="w-full bg-primary rounded-t-sm h-[75%]"></div>
+            </div>
+            <p class="text-xs text-primary mt-2">+5% vs last week</p>
+          </div>
+          <!-- Congruency Trend -->
+          <div class="flex-1 rounded-2xl bg-surface-dark border border-white/5 p-5 flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm font-medium text-slate-400">Congruency</p>
+                <h4 class="text-xl font-bold text-white mt-1">92%</h4>
+              </div>
+              <span class="material-symbols-outlined text-blue-400">group_work</span>
+            </div>
+            <div class="h-12 w-full mt-4 relative overflow-hidden">
+              <!-- Wave for chart -->
+              <svg class="h-full w-full" preserveaspectratio="none" viewbox="0 0 100 50">
+                <path d="M0 25 Q 25 10, 50 25 T 100 15" fill="none" stroke="#60a5fa" stroke-width="2"></path>
+                <path d="M0 25 Q 25 10, 50 25 T 100 15 V 50 H 0 Z" fill="#60a5fa" fill-opacity="0.2"></path>
+              </svg>
+            </div>
+            <p class="text-xs text-blue-400 mt-2">High consensus detected</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body></html>

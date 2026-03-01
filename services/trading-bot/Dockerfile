@@ -10,6 +10,7 @@ COPY pyproject.toml poetry.lock* ./
 
 # Install runtime deps only (no dev tools in production)
 RUN poetry config virtualenvs.create false \
+    && poetry lock --no-update \
     && poetry install --no-interaction --no-ansi --without dev
 
 # Copy source
