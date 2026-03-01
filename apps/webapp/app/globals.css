@@ -4,36 +4,32 @@
 
 @layer base {
   :root {
-    /* Deep dark green background: #0a0f0c */
-    --background: 144 20% 5%;
+    --background: 144 30% 6%;
     --foreground: 210 40% 95%;
 
-    /* Card surface — slightly lighter than background */
-    --card: 147 22% 12%;
+    --card: 147 25% 11%;
     --card-foreground: 210 40% 95%;
 
-    /* Neon green primary: #19e680 */
     --primary: 150 80% 50%;
-    --primary-foreground: 0 0% 0%;
+    --primary-foreground: 145 35% 6%;
 
-    /* Surface highlight */
-    --secondary: 148 18% 17%;
+    --secondary: 149 24% 16%;
     --secondary-foreground: 210 40% 95%;
 
-    --muted: 148 15% 14%;
-    --muted-foreground: 215 18% 52%;
+    --muted: 147 20% 14%;
+    --muted-foreground: 145 13% 66%;
 
-    --accent: 148 18% 17%;
+    --accent: 149 24% 16%;
     --accent-foreground: 210 40% 95%;
 
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 148 14% 22%;
-    --input: 148 14% 18%;
+    --border: 148 18% 22%;
+    --input: 148 18% 19%;
     --ring: 150 80% 50%;
 
-    --radius: 0.5rem;
+    --radius: 0.9rem;
   }
 }
 
@@ -43,20 +39,32 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(900px circle at -5% -10%, hsl(var(--primary) / 0.08), transparent 55%),
+      radial-gradient(700px circle at 105% 0%, hsl(var(--primary) / 0.05), transparent 60%);
+    background-attachment: fixed;
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: hsl(144, 20%, 5%);
+    background: hsl(var(--background));
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(148, 19%, 14%);
-    border-radius: 3px;
+    background: hsl(var(--secondary));
+    border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(150, 80%, 50%);
+    background: hsl(var(--primary));
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-space-grotesk), sans-serif;
+    letter-spacing: -0.015em;
   }
 }
