@@ -119,11 +119,12 @@ function KpiCard({
   icon: React.ElementType;
 }) {
   return (
-    <Card>
+    <Card className="group relative overflow-hidden border-white/5 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30">
+      <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-primary/10 blur-3xl" />
       <CardContent className="pt-5 pb-5">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {label}
             </p>
             <p className="text-2xl font-bold text-white">{value}</p>
@@ -141,7 +142,7 @@ function KpiCard({
               </p>
             )}
           </div>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary ring-1 ring-white/5">
             <Icon className="h-4 w-4" />
           </div>
         </div>
@@ -162,20 +163,26 @@ export default async function DashboardPage() {
     ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <AutoRefresh />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Live trading overview
+          <h1 className="text-3xl font-bold text-white">Market Overview</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Live data from WhatsApp consensus and execution activity.
           </p>
         </div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+          Bot Active
+        </span>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Pool Value"
           value={`${totalSats.toLocaleString()} sats`}
@@ -207,24 +214,41 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Charts row */}
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 border-border/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
-              P&amp;L — 30-day window
-            </CardTitle>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2 border-white/5 bg-card/95">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base text-white">
+                  <ArrowUpRight className="h-4 w-4 text-primary" />
+                  BTC / USDT Position View
+                </CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  P&amp;L over the last 30 days
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <span className="rounded-lg bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
+                  1H
+                </span>
+                <span className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary ring-1 ring-primary/30">
+                  4H
+                </span>
+                <span className="rounded-lg bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
+                  1D
+                </span>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <PnlChart data={pnlData} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Activity className="h-3.5 w-3.5 text-primary" />
+        <Card className="border-white/5 bg-card/95">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-white">
+              <Activity className="h-4 w-4 text-primary" />
               Strategy Win Rate
             </CardTitle>
           </CardHeader>
@@ -234,10 +258,9 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Open positions table */}
-      <Card>
+      <Card className="border-white/5 bg-card/95">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-base text-white">
             <Clock className="h-4 w-4 text-primary" />
             Open Positions
             <span className="text-sm font-normal text-muted-foreground">
@@ -253,15 +276,15 @@ export default async function DashboardPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-border/30 hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Strategy</TableHead>
-                  <TableHead className="text-muted-foreground">Direction</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Entry</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Target</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Leverage</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Sats</TableHead>
-                  <TableHead className="text-right text-muted-foreground">P&amp;L</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Time</TableHead>
+                <TableRow className="bg-background/40 hover:bg-background/40">
+                  <TableHead>Strategy</TableHead>
+                  <TableHead>Direction</TableHead>
+                  <TableHead className="text-right">Entry</TableHead>
+                  <TableHead className="text-right">Target</TableHead>
+                  <TableHead className="text-right">Leverage</TableHead>
+                  <TableHead className="text-right">Sats</TableHead>
+                  <TableHead className="text-right">P&amp;L</TableHead>
+                  <TableHead className="text-right">Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

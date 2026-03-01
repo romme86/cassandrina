@@ -121,15 +121,16 @@ export default function HistoryPage() {
       : "0.0";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <History className="h-4 w-4" />
+    <div className="space-y-8">
+      <div>
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+          <History className="h-3.5 w-3.5" />
+          Trade archive
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Trade History</h1>
-          <p className="text-sm text-muted-foreground">All closed and open positions</p>
-        </div>
+        <h1 className="text-4xl font-bold text-white">Trade &amp; Prediction History</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Historical log of executed trades and prediction outcomes.
+        </p>
       </div>
 
       {/* KPI stats bar */}
@@ -162,13 +163,14 @@ export default function HistoryPage() {
         />
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
+      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <Card className="h-fit border-white/5 bg-card/95">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Strategy</label>
               <Select
@@ -176,7 +178,7 @@ export default function HistoryPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setStrategy(e.target.value)
                 }
-                className="bg-secondary border-white/10 w-40"
+                className="w-full"
               >
                 <option value="">All Strategies</option>
                 {["A", "B", "C", "D", "E"].map((s) => (
@@ -193,7 +195,7 @@ export default function HistoryPage() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   setOutcome(e.target.value)
                 }
-                className="bg-secondary border-white/10 w-40"
+                className="w-full"
               >
                 <option value="">All Outcomes</option>
                 <option value="won">Won</option>
@@ -201,73 +203,72 @@ export default function HistoryPage() {
                 <option value="liquidated">Liquidated</option>
               </Select>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Trade table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <p className="text-muted-foreground text-sm p-6">Loading...</p>
-          ) : trades.length === 0 ? (
-            <p className="text-muted-foreground text-sm p-6">No trades found.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/30 hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Date/Time</TableHead>
-                  <TableHead className="text-muted-foreground">Strategy</TableHead>
-                  <TableHead className="text-muted-foreground">Direction</TableHead>
-                  <TableHead className="text-right text-muted-foreground">Confidence</TableHead>
-                  <TableHead className="text-muted-foreground">Result</TableHead>
-                  <TableHead className="text-right text-muted-foreground">PnL (sats)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {trades.map((t) => (
-                  <TableRow key={t.id} className="border-border/30 hover:bg-secondary/50">
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {new Date(t.opened_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <StrategyBadge strategy={t.strategy} />
-                    </TableCell>
-                    <TableCell
-                      className={`font-medium text-sm ${
-                        t.direction === "long" ? "text-primary" : "text-red-400"
-                      }`}
-                    >
-                      {t.direction.toUpperCase()}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs">
-                      {t.confidence_score != null
-                        ? `${t.confidence_score.toFixed(1)}%`
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <ResultBadge status={t.status} pnl={t.pnl_sats} />
-                    </TableCell>
-                    <TableCell
-                      className={`text-right font-mono text-sm ${
-                        t.pnl_sats == null
-                          ? "text-muted-foreground"
-                          : t.pnl_sats >= 0
-                          ? "text-primary"
-                          : "text-red-400"
-                      }`}
-                    >
-                      {t.pnl_sats != null
-                        ? `${t.pnl_sats >= 0 ? "+" : ""}${t.pnl_sats.toLocaleString()}`
-                        : "—"}
-                    </TableCell>
+        <Card className="border-white/5 bg-card/95">
+          <CardContent className="p-0">
+            {loading ? (
+              <p className="p-6 text-sm text-muted-foreground">Loading...</p>
+            ) : trades.length === 0 ? (
+              <p className="p-6 text-sm text-muted-foreground">No trades found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-background/40 hover:bg-background/40">
+                    <TableHead>Date/Time</TableHead>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead>Direction</TableHead>
+                    <TableHead className="text-right">Confidence</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead className="text-right">PnL (sats)</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {trades.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {new Date(t.opened_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <StrategyBadge strategy={t.strategy} />
+                      </TableCell>
+                      <TableCell
+                        className={`font-medium text-sm ${
+                          t.direction === "long" ? "text-primary" : "text-red-400"
+                        }`}
+                      >
+                        {t.direction.toUpperCase()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {t.confidence_score != null
+                          ? `${t.confidence_score.toFixed(1)}%`
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <ResultBadge status={t.status} pnl={t.pnl_sats} />
+                      </TableCell>
+                      <TableCell
+                        className={`text-right font-mono text-sm ${
+                          t.pnl_sats == null
+                            ? "text-muted-foreground"
+                            : t.pnl_sats >= 0
+                            ? "text-primary"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {t.pnl_sats != null
+                          ? `${t.pnl_sats >= 0 ? "+" : ""}${t.pnl_sats.toLocaleString()}`
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -139,29 +139,85 @@ export default async function PredictionsPage() {
 
   const openRounds = rounds.filter((r) => r.status === "open");
   const settledRounds = rounds.filter((r) => r.status === "settled");
+  const completedWithActual = rounds.filter((r) => r.btc_actual_price != null).length;
+  const avgConfidence =
+    rounds.filter((r) => r.confidence_score != null).reduce((sum, r) => sum + (r.confidence_score ?? 0), 0) /
+    Math.max(
+      1,
+      rounds.filter((r) => r.confidence_score != null).length
+    );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <AutoRefresh />
 
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <LineChart className="h-4 w-4" />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+            <LineChart className="h-3.5 w-3.5" />
+            Active cycle
+          </div>
+          <h1 className="text-4xl font-bold text-white">Prediction Windows</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Submit and settle daily BTC target rounds. Strategy and confidence are derived from consensus.
+          </p>
         </div>
+        <Card className="border-white/5 bg-card/95">
+          <CardContent className="pt-6">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Rounds Summary</p>
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-semibold text-white">{rounds.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Open</span>
+                <span className="font-semibold text-primary">{openRounds.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Settled</span>
+                <span className="font-semibold text-white">{settledRounds.length}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="border-white/5 bg-card/95">
+          <CardContent className="pt-5">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Open Rounds</p>
+            <p className="mt-2 text-3xl font-bold text-primary">{openRounds.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-white/5 bg-card/95">
+          <CardContent className="pt-5">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Completed</p>
+            <p className="mt-2 text-3xl font-bold text-white">{completedWithActual}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-white/5 bg-card/95">
+          <CardContent className="pt-5">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg Confidence</p>
+            <p className="mt-2 text-3xl font-bold text-white">{avgConfidence.toFixed(1)}%</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Predictions</h1>
-          <p className="text-sm text-muted-foreground">{rounds.length} total rounds</p>
+          <h2 className="text-lg font-semibold text-white">Strategy Performance</h2>
+          <p className="text-sm text-muted-foreground">Win-rate and average return by strategy</p>
         </div>
       </div>
 
-      {/* Strategy performance cards */}
       {strategies.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {strategies.map((s) => {
             const winRate =
               s.total_trades > 0 ? Math.round((s.wins / s.total_trades) * 100) : 0;
             return (
-              <Card key={s.strategy} className="">
+              <Card key={s.strategy} className="border-white/5 bg-card/95">
                 <CardContent className="pt-4 pb-4">
                   <StrategyBadge strategy={s.strategy} className="mb-2" />
                   <p className="text-xs text-muted-foreground">{s.total_trades} trades</p>
@@ -181,7 +237,7 @@ export default async function PredictionsPage() {
 
       {/* Rounds table */}
       <Tabs defaultValue="all">
-        <TabsList className="bg-secondary border border-border/30">
+        <TabsList>
           <TabsTrigger value="all">All ({rounds.length})</TabsTrigger>
           <TabsTrigger value="open">Open ({openRounds.length})</TabsTrigger>
           <TabsTrigger value="settled">Settled ({settledRounds.length})</TabsTrigger>
@@ -192,20 +248,20 @@ export default async function PredictionsPage() {
             tab === "all" ? rounds : tab === "open" ? openRounds : settledRounds;
           return (
             <TabsContent key={tab} value={tab}>
-              <Card>
+              <Card className="border-white/5 bg-card/95">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-muted-foreground">Date</TableHead>
-                        <TableHead className="text-muted-foreground">Status</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Polymarket</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Confidence</TableHead>
-                        <TableHead className="text-muted-foreground">Strategy</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Target</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Actual</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Participants</TableHead>
-                        <TableHead className="text-muted-foreground">Winner</TableHead>
+                      <TableRow className="bg-background/40 hover:bg-background/40">
+                        <TableHead>Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Polymarket</TableHead>
+                        <TableHead className="text-right">Confidence</TableHead>
+                        <TableHead>Strategy</TableHead>
+                        <TableHead className="text-right">Target</TableHead>
+                        <TableHead className="text-right">Actual</TableHead>
+                        <TableHead className="text-right">Participants</TableHead>
+                        <TableHead>Winner</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

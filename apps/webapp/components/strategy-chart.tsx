@@ -24,11 +24,11 @@ interface StrategyChartProps {
 }
 
 const STRATEGY_COLORS: Record<string, string> = {
-  A: "#dc2626",
-  B: "#ea580c",
-  C: "#ca8a04",
-  D: "#2563eb",
-  E: "#16a34a",
+  A: "#34d399",
+  B: "#22c55e",
+  C: "#10b981",
+  D: "#059669",
+  E: "#6ee7b7",
 };
 
 export function StrategyChart({ data }: StrategyChartProps) {
@@ -46,9 +46,9 @@ export function StrategyChart({ data }: StrategyChartProps) {
   }));
 
   const tooltipStyle = {
-    backgroundColor: "hsl(222 47% 8%)",
-    border: "1px solid hsl(217 33% 17%)",
-    borderRadius: "0.5rem",
+    backgroundColor: "hsl(147 25% 11%)",
+    border: "1px solid hsl(148 18% 22%)",
+    borderRadius: "0.75rem",
     color: "hsl(210 40% 95%)",
     fontSize: "12px",
   };
@@ -56,17 +56,17 @@ export function StrategyChart({ data }: StrategyChartProps) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={formatted} layout="vertical">
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" horizontal={false} />
+        <CartesianGrid strokeDasharray="4 4" stroke="hsl(148 18% 22%)" horizontal={false} />
         <XAxis
           type="number"
           domain={[0, 100]}
           tickFormatter={(v) => `${v}%`}
-          tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }}
+          tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }}
         />
         <YAxis
           type="category"
           dataKey="strategy"
-          tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }}
+          tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }}
           width={70}
           tickFormatter={(v) => `Strategy ${v}`}
         />

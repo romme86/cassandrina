@@ -41,26 +41,26 @@ export function PnlChart({ data }: PnlChartProps) {
   }));
 
   const tooltipStyle = {
-    backgroundColor: "hsl(222 47% 8%)",
-    border: "1px solid hsl(217 33% 17%)",
-    borderRadius: "0.5rem",
+    backgroundColor: "hsl(147 25% 11%)",
+    border: "1px solid hsl(148 18% 22%)",
+    borderRadius: "0.75rem",
     color: "hsl(210 40% 95%)",
     fontSize: "12px",
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex gap-2">
         <Button
           size="sm"
-          variant={mode === "cumulative" ? "default" : "ghost"}
+          variant={mode === "cumulative" ? "default" : "outline"}
           onClick={() => setMode("cumulative")}
         >
           Cumulative
         </Button>
         <Button
           size="sm"
-          variant={mode === "daily" ? "default" : "ghost"}
+          variant={mode === "daily" ? "default" : "outline"}
           onClick={() => setMode("daily")}
         >
           Daily
@@ -72,31 +72,31 @@ export function PnlChart({ data }: PnlChartProps) {
           <AreaChart data={formatted}>
             <defs>
               <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(24 95% 53%)" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="hsl(24 95% 53%)" stopOpacity={0} />
+                <stop offset="5%" stopColor="hsl(150 80% 50%)" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="hsl(150 80% 50%)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} />
+            <CartesianGrid strokeDasharray="4 4" stroke="hsl(148 18% 22%)" />
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }} />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v} sats`, "Cumulative P&L"]} />
             <Area
               type="monotone"
               dataKey="cumulative_pnl"
-              stroke="hsl(24 95% 53%)"
+              stroke="hsl(150 80% 50%)"
               fill="url(#pnlGradient)"
               strokeWidth={2}
             />
           </AreaChart>
         ) : (
           <BarChart data={formatted}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 55%)" }} />
+            <CartesianGrid strokeDasharray="4 4" stroke="hsl(148 18% 22%)" />
+            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }} />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(145 13% 66%)" }} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v} sats`, "Daily P&L"]} />
             <Bar
               dataKey="daily_pnl"
-              fill="hsl(24 95% 53%)"
+              fill="hsl(150 80% 50%)"
               radius={[4, 4, 0, 0]}
             />
           </BarChart>
