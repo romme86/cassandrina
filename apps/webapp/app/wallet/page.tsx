@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Wallet, Zap, Bitcoin, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Wallet, Zap, Coins, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 interface LndBalance {
   onchainConfirmed: number;
@@ -40,7 +40,7 @@ function BalanceCard({
   icon: React.ElementType;
 }) {
   return (
-    <Card className="border-white/5">
+    <Card>
       <CardContent className="pt-5 pb-5">
         <div className="flex items-start justify-between">
           <div>
@@ -69,7 +69,7 @@ function LiquidityBar({
   const remotePct = 100 - localPct;
 
   return (
-    <Card className="border-white/5">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-primary" />
@@ -143,7 +143,7 @@ export default function WalletPage() {
               label="On-chain Balance"
               value={balance ? `${balance.onchainConfirmed.toLocaleString()}` : "—"}
               subValue="confirmed sats"
-              icon={Bitcoin}
+              icon={Coins}
             />
             <BalanceCard
               label="Unconfirmed"
@@ -165,7 +165,7 @@ export default function WalletPage() {
           )}
 
           {/* Transaction activity */}
-          <Card className="border-white/5">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Transaction Activity</CardTitle>
             </CardHeader>
@@ -175,7 +175,7 @@ export default function WalletPage() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-white/5 hover:bg-transparent">
+                    <TableRow className="border-border/30 hover:bg-transparent">
                       <TableHead className="text-muted-foreground">Date</TableHead>
                       <TableHead className="text-muted-foreground">Type</TableHead>
                       <TableHead className="text-muted-foreground">Description</TableHead>
@@ -185,7 +185,7 @@ export default function WalletPage() {
                   </TableHeader>
                   <TableBody>
                     {transactions.map((tx) => (
-                      <TableRow key={tx.id} className="border-white/5 hover:bg-secondary/50">
+                      <TableRow key={tx.id} className="border-border/30 hover:bg-secondary/50">
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {new Date(tx.created_at).toLocaleDateString()}
                         </TableCell>

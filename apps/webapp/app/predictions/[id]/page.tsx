@@ -138,7 +138,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
 
       {/* Price summary + confidence */}
       <div className="grid md:grid-cols-2 gap-4">
-        <Card className="border-white/5">
+        <Card className="border-border/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Price Summary
@@ -179,7 +179,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
           </CardContent>
         </Card>
 
-        <Card className="border-white/5">
+        <Card className="border-border/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Activity className="h-3.5 w-3.5 text-primary" />
@@ -205,7 +205,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
 
       {/* Market sentiment */}
       {predictions.length > 0 && (
-        <Card className="border-white/5">
+        <Card className="border-border/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Market Sentiment
@@ -250,7 +250,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
 
       {/* Trade card */}
       {trade && (
-        <Card className="border-white/5">
+        <Card className="border-border/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -302,7 +302,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
       )}
 
       {/* Predictions table */}
-      <Card className="border-white/5">
+      <Card className="border-border/30">
         <CardHeader>
           <CardTitle className="text-base">Predictions ({predictions.length})</CardTitle>
         </CardHeader>
@@ -312,7 +312,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
+                <TableRow className="border-border/30 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">User</TableHead>
                   <TableHead className="text-right text-muted-foreground">Predicted</TableHead>
                   <TableHead className="text-right text-muted-foreground">Δ from Actual</TableHead>
@@ -325,7 +325,7 @@ export default async function RoundDetailPage({ params }: { params: { id: string
                 {predictions.map((p) => {
                   const correct = isCorrect(p.predicted_price, round.btc_actual_price);
                   return (
-                    <TableRow key={p.id} className="border-white/5 hover:bg-secondary/50">
+                    <TableRow key={p.id} className="border-border/30 hover:bg-secondary/50">
                       <TableCell className="font-medium text-white">
                         {p.display_name}
                       </TableCell>

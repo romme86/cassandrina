@@ -30,7 +30,7 @@ export function Sidebar({ tradingEnabled = false }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-white/5 bg-card z-40">
+    <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col border-r border-primary/10 bg-card z-40" style={{ boxShadow: "2px 0 20px rgba(0,0,0,0.4)" }}>
       <div className="flex flex-col h-full justify-between p-4">
         <div className="flex flex-col gap-6">
           {/* Brand */}

@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { query } from "@/lib/db";
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+});
 
 export const metadata: Metadata = {
   title: "Cassandrina — Bitcoin Trading Bot",
@@ -28,8 +34,8 @@ export default async function RootLayout({
   const tradingEnabled = await getTradingEnabled();
 
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-background text-foreground">
+    <html lang="en" className={`dark ${spaceGrotesk.variable}`}>
+      <body className="min-h-screen bg-background text-foreground font-[family-name:var(--font-space-grotesk)]">
         <TooltipProvider>
           <Sidebar tradingEnabled={tradingEnabled} />
           <main className="ml-60 min-h-screen p-6">{children}</main>

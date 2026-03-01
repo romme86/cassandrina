@@ -94,7 +94,7 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
       {rounds.map((r) => (
         <TableRow
           key={r.id}
-          className="cursor-pointer hover:bg-secondary/50 border-white/5"
+          className="cursor-pointer hover:bg-secondary/50 border-border/30"
           onClick={() => {
             if (typeof window !== "undefined") window.location.href = `/predictions/${r.id}`;
           }}
@@ -161,7 +161,7 @@ export default async function PredictionsPage() {
             const winRate =
               s.total_trades > 0 ? Math.round((s.wins / s.total_trades) * 100) : 0;
             return (
-              <Card key={s.strategy} className="border-white/5">
+              <Card key={s.strategy} className="">
                 <CardContent className="pt-4 pb-4">
                   <StrategyBadge strategy={s.strategy} className="mb-2" />
                   <p className="text-xs text-muted-foreground">{s.total_trades} trades</p>
@@ -181,7 +181,7 @@ export default async function PredictionsPage() {
 
       {/* Rounds table */}
       <Tabs defaultValue="all">
-        <TabsList className="bg-secondary border border-white/5">
+        <TabsList className="bg-secondary border border-border/30">
           <TabsTrigger value="all">All ({rounds.length})</TabsTrigger>
           <TabsTrigger value="open">Open ({openRounds.length})</TabsTrigger>
           <TabsTrigger value="settled">Settled ({settledRounds.length})</TabsTrigger>
@@ -192,11 +192,11 @@ export default async function PredictionsPage() {
             tab === "all" ? rounds : tab === "open" ? openRounds : settledRounds;
           return (
             <TabsContent key={tab} value={tab}>
-              <Card className="border-white/5">
+              <Card>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableRow className="hover:bg-transparent">
                         <TableHead className="text-muted-foreground">Date</TableHead>
                         <TableHead className="text-muted-foreground">Status</TableHead>
                         <TableHead className="text-right text-muted-foreground">Polymarket</TableHead>

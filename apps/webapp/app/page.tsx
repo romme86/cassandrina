@@ -119,7 +119,7 @@ function KpiCard({
   icon: React.ElementType;
 }) {
   return (
-    <Card className="border-white/5">
+    <Card>
       <CardContent className="pt-5 pb-5">
         <div className="flex items-start justify-between">
           <div>
@@ -209,7 +209,7 @@ export default async function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 border-white/5">
+        <Card className="lg:col-span-2 border-border/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
@@ -221,7 +221,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-white/5">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Activity className="h-3.5 w-3.5 text-primary" />
@@ -235,7 +235,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Open positions table */}
-      <Card className="border-white/5">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4 text-primary" />
@@ -253,7 +253,7 @@ export default async function DashboardPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
+                <TableRow className="border-border/30 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Strategy</TableHead>
                   <TableHead className="text-muted-foreground">Direction</TableHead>
                   <TableHead className="text-right text-muted-foreground">Entry</TableHead>
@@ -266,7 +266,7 @@ export default async function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {trades.map((t: Trade) => (
-                  <TableRow key={t.id} className="border-white/5 hover:bg-secondary/50">
+                  <TableRow key={t.id} className="border-border/30 hover:bg-secondary/50">
                     <TableCell>
                       <StrategyBadge strategy={t.strategy} />
                     </TableCell>

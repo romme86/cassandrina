@@ -90,7 +90,7 @@ function ConfigSection({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="border-white/5">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Icon className="h-3.5 w-3.5 text-primary" />

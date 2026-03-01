@@ -96,7 +96,7 @@ function UserCard({
 }) {
   return (
     <Link href={`/users/${user.id}`}>
-      <Card className="border-white/5 hover:border-primary/30 hover:bg-secondary/30 transition-all cursor-pointer">
+      <Card className="hover:border-primary/30 hover:bg-secondary/30 transition-all cursor-pointer">
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4">
             <RankBadge rank={rank} />
@@ -158,7 +158,7 @@ export default async function UsersPage() {
         <p className="text-muted-foreground">No users yet.</p>
       ) : (
         <Tabs defaultValue="accuracy">
-          <TabsList className="bg-secondary border border-white/5">
+          <TabsList className="bg-secondary border border-border/30">
             <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
             <TabsTrigger value="congruency">Congruency</TabsTrigger>
             <TabsTrigger value="sats">Sats Won</TabsTrigger>

@@ -8,29 +8,29 @@
     --background: 144 20% 5%;
     --foreground: 210 40% 95%;
 
-    /* Card surface: #131c17 */
-    --card: 147 19% 9%;
+    /* Card surface — slightly lighter than background */
+    --card: 147 22% 12%;
     --card-foreground: 210 40% 95%;
 
     /* Neon green primary: #19e680 */
     --primary: 150 80% 50%;
     --primary-foreground: 0 0% 0%;
 
-    /* Surface highlight: #1c2922 */
-    --secondary: 148 19% 14%;
+    /* Surface highlight */
+    --secondary: 148 18% 17%;
     --secondary-foreground: 210 40% 95%;
 
-    --muted: 148 16% 12%;
-    --muted-foreground: 215 16% 50%;
+    --muted: 148 15% 14%;
+    --muted-foreground: 215 18% 52%;
 
-    --accent: 148 19% 14%;
+    --accent: 148 18% 17%;
     --accent-foreground: 210 40% 95%;
 
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 148 12% 14%;
-    --input: 148 12% 14%;
+    --border: 148 14% 22%;
+    --input: 148 14% 18%;
     --ring: 150 80% 50%;
 
     --radius: 0.5rem;

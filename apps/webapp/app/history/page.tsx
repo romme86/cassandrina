@@ -48,7 +48,7 @@ function KpiTile({
   positive?: boolean;
 }) {
   return (
-    <Card className="border-white/5">
+    <Card>
       <CardContent className="pt-4 pb-4">
         <div className="flex items-start justify-between">
           <div>
@@ -163,7 +163,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters */}
-      <Card className="border-white/5">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">Filters</CardTitle>
         </CardHeader>
@@ -206,7 +206,7 @@ export default function HistoryPage() {
       </Card>
 
       {/* Trade table */}
-      <Card className="border-white/5">
+      <Card>
         <CardContent className="p-0">
           {loading ? (
             <p className="text-muted-foreground text-sm p-6">Loading...</p>
@@ -215,7 +215,7 @@ export default function HistoryPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-white/5 hover:bg-transparent">
+                <TableRow className="border-border/30 hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Date/Time</TableHead>
                   <TableHead className="text-muted-foreground">Strategy</TableHead>
                   <TableHead className="text-muted-foreground">Direction</TableHead>
@@ -226,7 +226,7 @@ export default function HistoryPage() {
               </TableHeader>
               <TableBody>
                 {trades.map((t) => (
-                  <TableRow key={t.id} className="border-white/5 hover:bg-secondary/50">
+                  <TableRow key={t.id} className="border-border/30 hover:bg-secondary/50">
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {new Date(t.opened_at).toLocaleString()}
                     </TableCell>
