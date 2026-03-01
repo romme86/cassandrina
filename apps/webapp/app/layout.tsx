@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Nav } from "@/components/nav";
+import { Sidebar } from "@/components/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { query } from "@/lib/db";
 
@@ -31,8 +31,8 @@ export default async function RootLayout({
     <html lang="en" className="dark">
       <body className="min-h-screen bg-background text-foreground">
         <TooltipProvider>
-          <Nav tradingEnabled={tradingEnabled} />
-          <main className="p-6">{children}</main>
+          <Sidebar tradingEnabled={tradingEnabled} />
+          <main className="ml-60 min-h-screen p-6">{children}</main>
         </TooltipProvider>
       </body>
     </html>

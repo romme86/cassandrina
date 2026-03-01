@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StrategyBadge } from "@/components/strategy-badge";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { LineChart } from "lucide-react";
 
 export const revalidate = 30;
 
@@ -82,7 +83,7 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
   if (rounds.length === 0) {
     return (
       <tr>
-        <td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
+        <td colSpan={9} className="text-center py-8 text-muted-foreground text-sm">
           No rounds yet
         </td>
       </tr>
@@ -93,12 +94,14 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
       {rounds.map((r) => (
         <TableRow
           key={r.id}
-          className="cursor-pointer hover:bg-muted/30"
+          className="cursor-pointer hover:bg-secondary/50 border-white/5"
           onClick={() => {
             if (typeof window !== "undefined") window.location.href = `/predictions/${r.id}`;
           }}
         >
-          <TableCell className="font-mono text-xs">{r.question_date}</TableCell>
+          <TableCell className="font-mono text-xs text-muted-foreground">
+            {r.question_date}
+          </TableCell>
           <TableCell>
             <StatusBadge status={r.status} />
           </TableCell>
@@ -108,7 +111,9 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
               : "—"}
           </TableCell>
           <TableCell className="text-right font-mono text-xs">
-            {r.confidence_score != null ? `${r.confidence_score.toFixed(1)}%` : "—"}
+            {r.confidence_score != null ? (
+              <span className="text-primary">{r.confidence_score.toFixed(1)}%</span>
+            ) : "—"}
           </TableCell>
           <TableCell>
             <StrategyBadge strategy={r.strategy_used} />
@@ -120,7 +125,9 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
             {r.btc_actual_price != null ? `$${r.btc_actual_price.toLocaleString()}` : "—"}
           </TableCell>
           <TableCell className="text-right text-xs">{r.participant_count}</TableCell>
-          <TableCell className="text-xs text-muted-foreground">{r.winner_name ?? "—"}</TableCell>
+          <TableCell className="text-xs text-muted-foreground">
+            {r.winner_name ?? "—"}
+          </TableCell>
         </TableRow>
       ))}
     </>
@@ -136,22 +143,31 @@ export default async function PredictionsPage() {
   return (
     <div className="space-y-6">
       <AutoRefresh />
-      <h1 className="text-2xl font-bold text-primary">Prediction History</h1>
 
-      {/* Strategy performance panel */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <LineChart className="h-4 w-4" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Predictions</h1>
+          <p className="text-sm text-muted-foreground">{rounds.length} total rounds</p>
+        </div>
+      </div>
+
+      {/* Strategy performance cards */}
       {strategies.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {strategies.map((s) => {
             const winRate =
               s.total_trades > 0 ? Math.round((s.wins / s.total_trades) * 100) : 0;
             return (
-              <Card key={s.strategy}>
+              <Card key={s.strategy} className="border-white/5">
                 <CardContent className="pt-4 pb-4">
                   <StrategyBadge strategy={s.strategy} className="mb-2" />
                   <p className="text-xs text-muted-foreground">{s.total_trades} trades</p>
                   <p className="text-xs text-muted-foreground">{winRate}% win rate</p>
                   <p className="text-xs font-mono mt-1">
-                    <span className={s.avg_pnl_sats >= 0 ? "text-green-400" : "text-red-400"}>
+                    <span className={s.avg_pnl_sats >= 0 ? "text-primary" : "text-red-400"}>
                       {s.avg_pnl_sats >= 0 ? "+" : ""}
                       {s.avg_pnl_sats.toLocaleString()} avg
                     </span>
@@ -163,9 +179,9 @@ export default async function PredictionsPage() {
         </div>
       )}
 
-      {/* Rounds table with filter tabs */}
+      {/* Rounds table */}
       <Tabs defaultValue="all">
-        <TabsList>
+        <TabsList className="bg-secondary border border-white/5">
           <TabsTrigger value="all">All ({rounds.length})</TabsTrigger>
           <TabsTrigger value="open">Open ({openRounds.length})</TabsTrigger>
           <TabsTrigger value="settled">Settled ({settledRounds.length})</TabsTrigger>
@@ -176,20 +192,20 @@ export default async function PredictionsPage() {
             tab === "all" ? rounds : tab === "open" ? openRounds : settledRounds;
           return (
             <TabsContent key={tab} value={tab}>
-              <Card>
+              <Card className="border-white/5">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Polymarket</TableHead>
-                        <TableHead className="text-right">Confidence</TableHead>
-                        <TableHead>Strategy</TableHead>
-                        <TableHead className="text-right">Target</TableHead>
-                        <TableHead className="text-right">Actual</TableHead>
-                        <TableHead className="text-right">Participants</TableHead>
-                        <TableHead>Winner</TableHead>
+                      <TableRow className="border-white/5 hover:bg-transparent">
+                        <TableHead className="text-muted-foreground">Date</TableHead>
+                        <TableHead className="text-muted-foreground">Status</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Polymarket</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Confidence</TableHead>
+                        <TableHead className="text-muted-foreground">Strategy</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Target</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Actual</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Participants</TableHead>
+                        <TableHead className="text-muted-foreground">Winner</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

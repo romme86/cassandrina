@@ -1,4 +1,4 @@
-import { Coins, TrendingUp, Activity, Zap } from "lucide-react";
+import { Coins, TrendingUp, Activity, Zap, Clock, ArrowUpRight } from "lucide-react";
 import { query } from "@/lib/db";
 import type { Trade, PredictionRound } from "@cassandrina/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatCard } from "@/components/stat-card";
 import { StrategyBadge } from "@/components/strategy-badge";
 import { PnlChart } from "@/components/pnl-chart";
 import { StrategyChart } from "@/components/strategy-chart";
@@ -106,6 +105,51 @@ function timeInTrade(openedAt: string): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function KpiCard({
+  label,
+  value,
+  subValue,
+  positive,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  subValue?: string;
+  positive?: boolean;
+  icon: React.ElementType;
+}) {
+  return (
+    <Card className="border-white/5">
+      <CardContent className="pt-5 pb-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+              {label}
+            </p>
+            <p className="text-2xl font-bold text-white">{value}</p>
+            {subValue && (
+              <p
+                className={`text-xs mt-1 font-medium ${
+                  positive === undefined
+                    ? "text-muted-foreground"
+                    : positive
+                    ? "text-primary"
+                    : "text-red-400"
+                }`}
+              >
+                {subValue}
+              </p>
+            )}
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function DashboardPage() {
   const [trades, round, totalSats, todayPnl, pnlData, strategyData] =
     await Promise.all([
@@ -121,41 +165,54 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <AutoRefresh />
 
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Live trading overview
+          </p>
+        </div>
+      </div>
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Portfolio (sats)"
-          value={totalSats.toLocaleString()}
+        <KpiCard
+          label="Pool Value"
+          value={`${totalSats.toLocaleString()} sats`}
+          subValue="Total accumulated"
           icon={Coins}
         />
-        <StatCard
+        <KpiCard
           label="Today P&L"
-          value={`${todayPnl >= 0 ? "+" : ""}${todayPnl.toLocaleString()} sats`}
+          value={`${todayPnl >= 0 ? "+" : ""}${todayPnl.toLocaleString()}`}
+          subValue="sats today"
+          positive={todayPnl >= 0}
           icon={TrendingUp}
-          delta={todayPnl}
-          deltaLabel={`${todayPnl >= 0 ? "+" : ""}${todayPnl} sats`}
         />
-        <StatCard
+        <KpiCard
           label="Confidence"
           value={
             round?.confidence_score != null
               ? `${round.confidence_score.toFixed(1)}%`
               : "—"
           }
+          subValue={round ? "current round" : "no active round"}
           icon={Activity}
         />
-        <StatCard
+        <KpiCard
           label="Active Strategy"
           value={round?.strategy_used ? `Strategy ${round.strategy_used}` : "—"}
+          subValue={round?.strategy_used ? "executing" : "waiting"}
           icon={Zap}
         />
       </div>
 
       {/* Charts row */}
       <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="lg:col-span-2 border-white/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <ArrowUpRight className="h-3.5 w-3.5 text-primary" />
               P&amp;L — 30-day window
             </CardTitle>
           </CardHeader>
@@ -164,9 +221,10 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+        <Card className="border-white/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Activity className="h-3.5 w-3.5 text-primary" />
               Strategy Win Rate
             </CardTitle>
           </CardHeader>
@@ -177,9 +235,10 @@ export default async function DashboardPage() {
       </div>
 
       {/* Open positions table */}
-      <Card>
+      <Card className="border-white/5">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4 text-primary" />
             Open Positions
             <span className="text-sm font-normal text-muted-foreground">
               ({trades.length} active)
@@ -188,47 +247,51 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           {trades.length === 0 ? (
-            <p className="text-muted-foreground text-sm px-6 pb-6">No open positions</p>
+            <p className="text-muted-foreground text-sm px-6 pb-6">
+              No open positions
+            </p>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Strategy</TableHead>
-                  <TableHead>Direction</TableHead>
-                  <TableHead className="text-right">Entry</TableHead>
-                  <TableHead className="text-right">Target</TableHead>
-                  <TableHead className="text-right">Leverage</TableHead>
-                  <TableHead className="text-right">Sats</TableHead>
-                  <TableHead className="text-right">P&amp;L</TableHead>
-                  <TableHead className="text-right">Time</TableHead>
+                <TableRow className="border-white/5 hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">Strategy</TableHead>
+                  <TableHead className="text-muted-foreground">Direction</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Entry</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Target</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Leverage</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Sats</TableHead>
+                  <TableHead className="text-right text-muted-foreground">P&amp;L</TableHead>
+                  <TableHead className="text-right text-muted-foreground">Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {trades.map((t: Trade) => (
-                  <TableRow key={t.id}>
+                  <TableRow key={t.id} className="border-white/5 hover:bg-secondary/50">
                     <TableCell>
                       <StrategyBadge strategy={t.strategy} />
                     </TableCell>
                     <TableCell
                       className={
-                        t.direction === "long" ? "text-green-400" : "text-red-400"
+                        t.direction === "long" ? "text-primary font-medium" : "text-red-400 font-medium"
                       }
                     >
                       {t.direction.toUpperCase()}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono text-sm">
                       ${t.entry_price.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono text-sm">
                       ${t.target_price.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right font-mono">{t.leverage}x</TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right font-mono text-sm">
+                      {t.leverage}x
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
                       {t.sats_deployed.toLocaleString()}
                     </TableCell>
                     <TableCell
-                      className={`text-right font-mono ${
-                        (t.pnl_sats ?? 0) >= 0 ? "text-green-400" : "text-red-400"
+                      className={`text-right font-mono text-sm ${
+                        (t.pnl_sats ?? 0) >= 0 ? "text-primary" : "text-red-400"
                       }`}
                     >
                       {t.pnl_sats != null
