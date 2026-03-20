@@ -91,25 +91,82 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 	switch {
 	case strings.HasSuffix(channel, "prediction:open"):
 		targetHour, _ := payload["target_hour"].(float64)
+		minSats, _ := payload["min_sats"].(float64)
+		maxSats, _ := payload["max_sats"].(float64)
 		msg := fmt.Sprintf(
 			"📊 *Daily BTC Prediction*\n\n"+
 				"What will BTC's price be at %02d:00 UTC today?\n\n"+
 				"Reply with: `<price> <sats>` (e.g. `95000 500`)\n"+
 				"Min: %d sats | Max: %d sats",
-			int(targetHour), b.cfg.MinSats, b.cfg.MaxSats,
+			int(targetHour), intOrDefault(minSats, b.cfg.MinSats), intOrDefault(maxSats, b.cfg.MaxSats),
 		)
 		_ = b.sendGroup(msg)
 
-	case strings.HasSuffix(channel, "trade:liquidated"):
+	case strings.HasSuffix(channel, "prediction:close"):
+		paidCount, _ := payload["paid_count"].(float64)
+		totalSats, _ := payload["total_sats"].(float64)
+		closeReason, _ := payload["close_reason"].(string)
 		_ = b.sendGroup(
-			"🔴 *Liquidation Alert!*\n\n" +
-				"The position was liquidated. All deployed sats have been lost.\n" +
-				"Better luck next round! 💪",
+			fmt.Sprintf(
+				"🔒 *Prediction window closed*\n\nPaid entries: %d\nTotal deployed: %d sats\nReason: %s",
+				int(paidCount),
+				int(totalSats),
+				closeReason,
+			),
+		)
+
+	case strings.HasSuffix(channel, "trade:opened"):
+		strategy, _ := payload["strategy"].(string)
+		direction, _ := payload["direction"].(string)
+		entryPrice, _ := payload["entry_price"].(float64)
+		targetPrice, _ := payload["target_price"].(float64)
+		satsDeployed, _ := payload["sats_deployed"].(float64)
+		dryRun, _ := payload["dry_run"].(bool)
+		mode := "LIVE"
+		if dryRun {
+			mode = "DRY RUN"
+		}
+		_ = b.sendGroup(
+			fmt.Sprintf(
+				"📈 *Trade opened (%s)*\n\nStrategy: %s\nDirection: %s\nEntry: $%.2f\nTarget: $%.2f\nDeployed: %d sats",
+				mode,
+				strategy,
+				strings.ToUpper(direction),
+				entryPrice,
+				targetPrice,
+				int(satsDeployed),
+			),
+		)
+
+	case strings.HasSuffix(channel, "trade:closed"):
+		pnlSats, _ := payload["pnl_sats"].(float64)
+		_ = b.sendGroup(
+			fmt.Sprintf("✅ *Trade closed*\n\nRound PnL: %+d sats", int(pnlSats)),
+		)
+
+	case strings.HasSuffix(channel, "trade:liquidated"):
+		pnlSats, _ := payload["pnl_sats"].(float64)
+		_ = b.sendGroup(
+			fmt.Sprintf(
+				"🔴 *Liquidation Alert!*\n\nThe position was liquidated.\nRound PnL: %+d sats\nBetter luck next round! 💪",
+				int(pnlSats),
+			),
 		)
 
 	case strings.HasSuffix(channel, "stats:8h"):
-		// Detailed stats are fetched from the webapp API and formatted separately.
-		_ = b.sendGroup("📊 *8-Hour Portfolio Update* — Check the dashboard for details.")
+		participantCount, _ := payload["participant_count"].(float64)
+		paidCount, _ := payload["paid_count"].(float64)
+		totalSats, _ := payload["total_sats"].(float64)
+		hoursToTarget, _ := payload["hours_to_target"].(float64)
+		_ = b.sendGroup(
+			fmt.Sprintf(
+				"📊 *%d-Hour Portfolio Update*\n\nParticipants: %d\nPaid: %d\nTotal sats: %d",
+				int(hoursToTarget),
+				int(participantCount),
+				int(paidCount),
+				int(totalSats),
+			),
+		)
 
 	case strings.HasSuffix(channel, "weekly:vote"):
 		_ = b.sendGroup(
@@ -126,4 +183,11 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 	default:
 		log.Printf("[bot] unhandled event: %s", channel)
 	}
+}
+
+func intOrDefault(value float64, fallback int) int {
+	if value == 0 {
+		return fallback
+	}
+	return int(value)
 }

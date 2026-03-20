@@ -364,7 +364,14 @@ export default function ConfigPage() {
   }, []);
 
   const loadConfig = async () => {
-    const cfg = await fetch("/api/config").then((r) => r.json());
+    const res = await fetch("/api/config");
+    if (res.status === 401) {
+      sessionStorage.removeItem("cassandrina_admin");
+      setUnlocked(false);
+      setConfig(null);
+      return;
+    }
+    const cfg = await res.json();
     setConfig(cfg);
   };
 

@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { BotConfigSchema } from "@cassandrina/shared";
 
-export async function GET() {
+function isAdmin(request: NextRequest): boolean {
+  return request.cookies.get("cassandrina_admin")?.value === "1";
+}
+
+export async function GET(request: NextRequest) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const rows = await query<{ key: string; value: string }>(
     "SELECT key, value FROM bot_config"
   );
@@ -11,6 +18,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

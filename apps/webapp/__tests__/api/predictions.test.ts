@@ -1,3 +1,4 @@
+/** @jest-environment node */
 /**
  * Jest tests for POST /api/predictions route handler.
  * DB and LND calls are mocked.
@@ -8,17 +9,41 @@ import { NextRequest } from "next/server";
 // Mock dependencies before importing the route
 jest.mock("@/lib/db", () => ({
   query: jest.fn(),
+  withTransaction: jest.fn(),
 }));
 
 jest.mock("@/lib/lnd", () => ({
   createLndInvoice: jest.fn(),
 }));
 
+jest.mock("@cassandrina/shared", () => ({
+  CreatePredictionSchema: {
+    safeParse(input: any) {
+      if (
+        !input ||
+        typeof input.whatsapp_jid !== "string" ||
+        input.whatsapp_jid.length === 0 ||
+        typeof input.predicted_price !== "number" ||
+        input.predicted_price <= 0 ||
+        typeof input.sats_amount !== "number" ||
+        input.sats_amount <= 0
+      ) {
+        return {
+          success: false,
+          error: { flatten: () => ({ fieldErrors: {} }) },
+        };
+      }
+      return { success: true, data: input };
+    },
+  },
+}));
+
 import { POST } from "@/app/api/predictions/route";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { createLndInvoice } from "@/lib/lnd";
 
 const mockQuery = query as jest.MockedFunction<typeof query>;
+const mockWithTransaction = withTransaction as jest.MockedFunction<typeof withTransaction>;
 const mockCreateInvoice = createLndInvoice as jest.MockedFunction<typeof createLndInvoice>;
 
 function makeRequest(body: unknown): NextRequest {
@@ -31,6 +56,15 @@ function makeRequest(body: unknown): NextRequest {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockWithTransaction.mockImplementation(async (callback) => {
+    const client = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    return callback(client as never);
+  });
 });
 
 describe("POST /api/predictions", () => {
@@ -76,6 +110,7 @@ describe("POST /api/predictions", () => {
     mockCreateInvoice.mockResolvedValueOnce({
       paymentRequest: "lnbc500n1...",
       rHashHex: "deadbeef",
+      expiresAt: "2026-03-20T10:00:00.000Z",
     });
 
     const req = makeRequest({
@@ -88,6 +123,7 @@ describe("POST /api/predictions", () => {
     const body = await res.json();
     expect(body.lightning_invoice).toBe("lnbc500n1...");
     expect(body.prediction_id).toBe(99);
+    expect(mockWithTransaction).toHaveBeenCalled();
   });
 
   test("returns 409 for duplicate prediction in same round", async () => {

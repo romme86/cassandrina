@@ -53,16 +53,17 @@ interface TxRow {
 async function getTransactions(): Promise<TxRow[]> {
   try {
     const invoices = await query<{
-      r_hash: string;
+      payment_hash: string;
       memo: string | null;
-      sats_amount: number;
+      amount_sats: number;
       paid: boolean;
       created_at: string;
+      invoice: string;
     }>(
-      `SELECT encode(payment_hash, 'hex') AS r_hash,
-              memo, sats_amount, paid, created_at
+      `SELECT encode(li.payment_hash, 'hex') AS payment_hash,
+              li.memo, li.amount_sats, li.paid, li.created_at, li.invoice
        FROM lightning_invoices
-       ORDER BY created_at DESC LIMIT 50`
+       ORDER BY li.created_at DESC LIMIT 50`
     );
     const trades = await query<{
       id: number;
@@ -78,10 +79,10 @@ async function getTransactions(): Promise<TxRow[]> {
     );
 
     const invoiceTxs: TxRow[] = invoices.map((inv) => ({
-      id: `inv-${inv.r_hash}`,
+      id: `inv-${inv.payment_hash}`,
       type: "invoice" as const,
       description: inv.memo ?? "Lightning invoice",
-      amount_sats: inv.sats_amount,
+      amount_sats: inv.amount_sats,
       settled: inv.paid,
       created_at: inv.created_at,
     }));

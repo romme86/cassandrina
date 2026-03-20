@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { createLndInvoice } from "@/lib/lnd";
 import { CreatePredictionSchema } from "@cassandrina/shared";
 
@@ -85,27 +84,45 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Create LND invoice
-  const invoice = await createLndInvoice(
-    sats_amount,
-    `Cassandrina prediction — round ${roundId}`,
-    3600
-  );
+  const memo = `Cassandrina prediction - round ${roundId}`;
 
-  // Store prediction
-  const [prediction] = await query<{ id: number }>(
-    `INSERT INTO predictions
-       (round_id, user_id, predicted_price, sats_amount, lightning_invoice)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id`,
-    [roundId, userId, predicted_price, sats_amount, invoice.paymentRequest]
-  );
+  // Create LND invoice
+  const invoice = await createLndInvoice(sats_amount, memo, 3600);
+
+  // Store prediction and invoice metadata atomically
+  const prediction = await withTransaction(async (client) => {
+    const predictionResult = await client.query<{ id: number }>(
+      `INSERT INTO predictions
+         (round_id, user_id, predicted_price, sats_amount, lightning_invoice)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [roundId, userId, predicted_price, sats_amount, invoice.paymentRequest]
+    );
+
+    const predictionId = predictionResult.rows[0].id;
+
+    await client.query(
+      `INSERT INTO lightning_invoices
+         (prediction_id, payment_hash, invoice, memo, amount_sats, expires_at)
+       VALUES ($1, decode($2, 'hex'), $3, $4, $5, $6)`,
+      [
+        predictionId,
+        invoice.rHashHex,
+        invoice.paymentRequest,
+        memo,
+        sats_amount,
+        invoice.expiresAt,
+      ]
+    );
+
+    return { id: predictionId };
+  });
 
   return NextResponse.json(
     {
       prediction_id: prediction.id,
       lightning_invoice: invoice.paymentRequest,
-      expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      expires_at: invoice.expiresAt,
     },
     { status: 201 }
   );

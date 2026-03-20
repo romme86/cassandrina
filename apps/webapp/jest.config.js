@@ -8,6 +8,7 @@ const config = {
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^@cassandrina/shared$": "<rootDir>/../../packages/shared/index.ts",
   },
 };
 

@@ -6,6 +6,7 @@
 export interface InvoiceResult {
   paymentRequest: string;
   rHashHex: string;
+  expiresAt: string;
 }
 
 export async function createLndInvoice(
@@ -43,5 +44,6 @@ export async function createLndInvoice(
   return {
     paymentRequest: data.payment_request as string,
     rHashHex: Buffer.from(data.r_hash as string, "base64").toString("hex"),
+    expiresAt: new Date(Date.now() + expirySeconds * 1000).toISOString(),
   };
 }

@@ -58,6 +58,27 @@ CREATE INDEX IF NOT EXISTS predictions_round_user_idx
     ON predictions(round_id, user_id);
 
 -- ============================================================
+-- Lightning invoices linked to predictions
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lightning_invoices (
+    id              BIGSERIAL PRIMARY KEY,
+    prediction_id   BIGINT NOT NULL REFERENCES predictions(id) ON DELETE CASCADE,
+    payment_hash    BYTEA NOT NULL UNIQUE,
+    invoice         TEXT NOT NULL,
+    memo            TEXT,
+    amount_sats     INT NOT NULL CHECK (amount_sats > 0),
+    paid            BOOL NOT NULL DEFAULT FALSE,
+    expires_at      TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paid_at         TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_lightning_invoices_prediction_id
+    ON lightning_invoices(prediction_id);
+CREATE INDEX IF NOT EXISTS idx_lightning_invoices_paid
+    ON lightning_invoices(paid);
+
+-- ============================================================
 -- Trades opened by the bot
 -- ============================================================
 CREATE TABLE IF NOT EXISTS trades (
