@@ -23,7 +23,8 @@ export const revalidate = 30;
 
 interface UserDetailRow {
   id: number;
-  whatsapp_jid: string;
+  platform: string;
+  platform_user_id: string;
   display_name: string;
   accuracy: number;
   congruency: number;
@@ -49,7 +50,7 @@ interface PredictionHistoryRow {
 
 async function getUserDetail(id: number) {
   const userRows = await query<UserDetailRow>(
-    `SELECT u.id, u.whatsapp_jid, u.display_name, u.accuracy, u.congruency, u.joined_at,
+    `SELECT u.id, u.platform, u.platform_user_id, u.display_name, u.accuracy, u.congruency, u.joined_at,
             COUNT(DISTINCT p.id)::int AS total_predictions,
             SUM(CASE WHEN p.paid THEN 1 ELSE 0 END)::int AS paid_predictions,
             COALESCE(SUM(be.delta_sats) FILTER (WHERE be.delta_sats > 0), 0)::int AS total_sats_won
@@ -88,6 +89,10 @@ function deltaPct(predicted: number, actual: number | null): string {
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
 }
 
+function formatIdentity(user: Pick<UserDetailRow, "platform" | "platform_user_id">): string {
+  return `${user.platform} · ${user.platform_user_id}`;
+}
+
 export default async function UserDetailPage({ params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10);
   if (isNaN(id)) notFound();
@@ -116,7 +121,7 @@ export default async function UserDetailPage({ params }: { params: { id: string 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{user.display_name}</h1>
-          <p className="text-muted-foreground text-sm">{user.whatsapp_jid}</p>
+          <p className="text-muted-foreground text-sm">{formatIdentity(user)}</p>
           <p className="text-muted-foreground text-xs mt-0.5">
             Joined {new Date(user.joined_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
           </p>

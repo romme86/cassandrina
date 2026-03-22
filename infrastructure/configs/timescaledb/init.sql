@@ -6,15 +6,17 @@
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 -- ============================================================
--- Users (WhatsApp participants)
+-- Users (chat participants)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
     id              SERIAL PRIMARY KEY,
-    whatsapp_jid    TEXT NOT NULL UNIQUE,
+    platform        TEXT NOT NULL,
+    platform_user_id TEXT NOT NULL,
     display_name    TEXT NOT NULL,
     accuracy        FLOAT NOT NULL DEFAULT 50.0,
     congruency      FLOAT NOT NULL DEFAULT 50.0,
-    joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (platform, platform_user_id)
 );
 
 -- ============================================================
@@ -144,4 +146,4 @@ CREATE INDEX IF NOT EXISTS idx_predictions_paid ON predictions(paid);
 CREATE INDEX IF NOT EXISTS idx_trades_round_id ON trades(round_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_balance_entries_user_id ON balance_entries(user_id);
-CREATE INDEX IF NOT EXISTS idx_users_whatsapp_jid ON users(whatsapp_jid);
+CREATE INDEX IF NOT EXISTS idx_users_platform_identity ON users(platform, platform_user_id);

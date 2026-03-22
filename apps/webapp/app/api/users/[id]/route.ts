@@ -12,12 +12,13 @@ export async function GET(
 
   const userRows = await query<{
     id: number;
-    whatsapp_jid: string;
+    platform: string;
+    platform_user_id: string;
     display_name: string;
     accuracy: number;
     congruency: number;
     joined_at: string;
-  }>("SELECT id, whatsapp_jid, display_name, accuracy, congruency, joined_at FROM users WHERE id = $1", [id]);
+  }>("SELECT id, platform, platform_user_id, display_name, accuracy, congruency, joined_at FROM users WHERE id = $1", [id]);
 
   if (userRows.length === 0) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });

@@ -4,7 +4,7 @@ import type { User } from "@cassandrina/shared";
 
 export async function GET() {
   const users = await query<User>(
-    "SELECT id, whatsapp_jid, display_name, accuracy, congruency, joined_at FROM users ORDER BY accuracy DESC"
+    "SELECT id, platform, platform_user_id, display_name, accuracy, congruency, joined_at FROM users ORDER BY accuracy DESC"
   );
   return NextResponse.json(users);
 }

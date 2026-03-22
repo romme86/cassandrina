@@ -8,13 +8,12 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /whatsapp-bot .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /telegram-bot .
 
 # Final image — scratch for minimal footprint (~10 MB)
 FROM scratch
 
-COPY --from=builder /whatsapp-bot /whatsapp-bot
-# CA certs for HTTPS calls
+COPY --from=builder /telegram-bot /telegram-bot
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-ENTRYPOINT ["/whatsapp-bot"]
+ENTRYPOINT ["/telegram-bot"]

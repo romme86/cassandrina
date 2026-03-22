@@ -10,17 +10,19 @@ import (
 
 // PredictionRequest is sent to POST /api/predictions.
 type PredictionRequest struct {
-	WhatsAppJID    string  `json:"whatsapp_jid"`
-	PredictedPrice float64 `json:"predicted_price"`
-	SatsAmount     int     `json:"sats_amount"`
-	RoundID        int     `json:"round_id,omitempty"`
+	Platform        string  `json:"platform"`
+	PlatformUserID  string  `json:"platform_user_id"`
+	DisplayName     string  `json:"display_name,omitempty"`
+	PredictedPrice  float64 `json:"predicted_price"`
+	SatsAmount      int     `json:"sats_amount"`
+	RoundID         int     `json:"round_id,omitempty"`
 }
 
 // PredictionResponse is returned by POST /api/predictions.
 type PredictionResponse struct {
-	PredictionID    int    `json:"prediction_id"`
+	PredictionID     int    `json:"prediction_id"`
 	LightningInvoice string `json:"lightning_invoice"`
-	ExpiresAt       string `json:"expires_at"`
+	ExpiresAt        string `json:"expires_at"`
 }
 
 // WebappClient calls the Next.js API.
@@ -29,15 +31,13 @@ type WebappClient struct {
 	httpClient *http.Client
 }
 
-// NewWebappClient creates a new client with a 10-second timeout.
 func NewWebappClient(baseURL string) *WebappClient {
 	return &WebappClient{
-		baseURL: baseURL,
+		baseURL:    baseURL,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-// CreatePrediction calls POST /api/predictions and returns the Lightning invoice.
 func (c *WebappClient) CreatePrediction(req PredictionRequest) (*PredictionResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {

@@ -3,20 +3,27 @@ import { query, withTransaction } from "@/lib/db";
 import { createLndInvoice } from "@/lib/lnd";
 import { CreatePredictionSchema } from "@cassandrina/shared";
 
-// Rate limiting: max 3 prediction attempts per JID per 10 minutes
+// Rate limiting: max 3 prediction attempts per user identity per 10 minutes
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(jid: string): boolean {
+function checkRateLimit(identity: string): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(jid);
+  const entry = rateLimitMap.get(identity);
 
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(jid, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    rateLimitMap.set(identity, { count: 1, resetAt: now + 10 * 60 * 1000 });
     return true;
   }
   if (entry.count >= 3) return false;
   entry.count++;
   return true;
+}
+
+function defaultDisplayName(platform: string, platformUserId: string): string {
+  if (platform === "telegram") {
+    return `telegram-${platformUserId}`;
+  }
+  return `${platform}-${platformUserId}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,9 +42,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { whatsapp_jid, predicted_price, sats_amount } = parsed.data;
+  const { platform, platform_user_id, display_name, predicted_price, sats_amount } = parsed.data;
+  const identityKey = `${platform}:${platform_user_id}`;
 
-  if (!checkRateLimit(whatsapp_jid)) {
+  if (!checkRateLimit(identityKey)) {
     return NextResponse.json(
       { error: "Too many prediction attempts. Wait a few minutes." },
       { status: 429 }
@@ -46,14 +54,18 @@ export async function POST(request: NextRequest) {
 
   // Find or create user
   const userRows = await query<{ id: number }>(
-    "SELECT id FROM users WHERE whatsapp_jid = $1",
-    [whatsapp_jid]
+    "SELECT id FROM users WHERE platform = $1 AND platform_user_id = $2",
+    [platform, platform_user_id]
   );
   let userId: number;
   if (userRows.length === 0) {
     const newUser = await query<{ id: number }>(
-      "INSERT INTO users (whatsapp_jid, display_name) VALUES ($1, $2) RETURNING id",
-      [whatsapp_jid, whatsapp_jid.split("@")[0]]
+      "INSERT INTO users (platform, platform_user_id, display_name) VALUES ($1, $2, $3) RETURNING id",
+      [
+        platform,
+        platform_user_id,
+        display_name ?? defaultDisplayName(platform, platform_user_id),
+      ]
     );
     userId = newUser[0].id;
   } else {

@@ -84,8 +84,11 @@ class TestUsersColumns:
     def test_has_id(self, cur):
         assert column_exists(cur, "users", "id")
 
-    def test_has_whatsapp_jid(self, cur):
-        assert column_exists(cur, "users", "whatsapp_jid")
+    def test_has_platform(self, cur):
+        assert column_exists(cur, "users", "platform")
+
+    def test_has_platform_user_id(self, cur):
+        assert column_exists(cur, "users", "platform_user_id")
 
     def test_has_display_name(self, cur):
         assert column_exists(cur, "users", "display_name")

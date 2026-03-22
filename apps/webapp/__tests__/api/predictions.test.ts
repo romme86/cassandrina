@@ -21,8 +21,10 @@ jest.mock("@cassandrina/shared", () => ({
     safeParse(input: any) {
       if (
         !input ||
-        typeof input.whatsapp_jid !== "string" ||
-        input.whatsapp_jid.length === 0 ||
+        typeof input.platform !== "string" ||
+        input.platform.length === 0 ||
+        typeof input.platform_user_id !== "string" ||
+        input.platform_user_id.length === 0 ||
         typeof input.predicted_price !== "number" ||
         input.predicted_price <= 0 ||
         typeof input.sats_amount !== "number" ||
@@ -69,14 +71,15 @@ beforeEach(() => {
 
 describe("POST /api/predictions", () => {
   test("returns 422 for missing fields", async () => {
-    const req = makeRequest({ whatsapp_jid: "123@s.whatsapp.net" });
+    const req = makeRequest({ platform: "telegram", platform_user_id: "12345" });
     const res = await POST(req);
     expect(res.status).toBe(422);
   });
 
   test("returns 422 for negative price", async () => {
     const req = makeRequest({
-      whatsapp_jid: "123@s.whatsapp.net",
+      platform: "telegram",
+      platform_user_id: "12345",
       predicted_price: -100,
       sats_amount: 500,
     });
@@ -90,7 +93,9 @@ describe("POST /api/predictions", () => {
       .mockResolvedValueOnce([]);             // no open round
 
     const req = makeRequest({
-      whatsapp_jid: "alice@s.whatsapp.net",
+      platform: "telegram",
+      platform_user_id: "1001",
+      display_name: "alice",
       predicted_price: 95000,
       sats_amount: 500,
     });
@@ -114,7 +119,9 @@ describe("POST /api/predictions", () => {
     });
 
     const req = makeRequest({
-      whatsapp_jid: "alice@s.whatsapp.net",
+      platform: "telegram",
+      platform_user_id: "1001",
+      display_name: "alice",
       predicted_price: 95000,
       sats_amount: 500,
     });
@@ -133,7 +140,9 @@ describe("POST /api/predictions", () => {
       .mockResolvedValueOnce([{ id: 10 }]); // existing prediction
 
     const req = makeRequest({
-      whatsapp_jid: "alice@s.whatsapp.net",
+      platform: "telegram",
+      platform_user_id: "1001",
+      display_name: "alice",
       predicted_price: 95000,
       sats_amount: 500,
     });

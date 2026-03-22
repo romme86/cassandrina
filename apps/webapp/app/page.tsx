@@ -172,7 +172,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">Market Overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live data from WhatsApp consensus and execution activity.
+            Live data from Telegram consensus and execution activity.
           </p>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">

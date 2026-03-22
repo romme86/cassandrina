@@ -2,7 +2,8 @@
 
 export interface User {
   id: number;
-  whatsapp_jid: string;
+  platform: string;
+  platform_user_id: string;
   display_name: string;
   accuracy: number;
   congruency: number;

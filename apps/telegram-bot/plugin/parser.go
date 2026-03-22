@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Prediction represents a parsed prediction from a WhatsApp message.
+// Prediction represents a parsed prediction from a Telegram message.
 type Prediction struct {
 	PredictedPrice float64
 	SatsAmount     int
@@ -16,8 +16,7 @@ type Prediction struct {
 // ErrInvalidFormat is returned when the message does not match "<price> <sats>".
 var ErrInvalidFormat = errors.New("invalid prediction format: expected '<price> <sats>'")
 
-// ParsePrediction parses a WhatsApp message into a Prediction.
-// Expected format: "<price> <sats>" e.g. "95000 500"
+// ParsePrediction parses a Telegram message into a Prediction.
 func ParsePrediction(msg string, minSats, maxSats int) (*Prediction, error) {
 	parts := strings.Fields(strings.TrimSpace(msg))
 	if len(parts) != 2 {

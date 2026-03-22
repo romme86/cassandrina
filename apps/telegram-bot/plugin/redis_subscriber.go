@@ -18,7 +18,7 @@ type RedisSubscriber struct {
 	handler EventHandler
 }
 
-// Channels that the WhatsApp bot subscribes to.
+// Channels that the Telegram bot subscribes to.
 var cassandrinaChannels = []string{
 	"cassandrina:prediction:open",
 	"cassandrina:prediction:close",
@@ -29,7 +29,6 @@ var cassandrinaChannels = []string{
 	"cassandrina:weekly:vote",
 }
 
-// NewRedisSubscriber creates a subscriber connected to *redisURL*.
 func NewRedisSubscriber(redisURL string, handler EventHandler) (*RedisSubscriber, error) {
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
@@ -41,7 +40,6 @@ func NewRedisSubscriber(redisURL string, handler EventHandler) (*RedisSubscriber
 	}, nil
 }
 
-// Run subscribes and blocks until ctx is cancelled.
 func (s *RedisSubscriber) Run(ctx context.Context) error {
 	pubsub := s.client.Subscribe(ctx, cassandrinaChannels...)
 	defer pubsub.Close()

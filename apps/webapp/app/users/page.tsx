@@ -10,7 +10,8 @@ export const revalidate = 30;
 
 interface UserRow {
   id: number;
-  whatsapp_jid: string;
+  platform: string;
+  platform_user_id: string;
   display_name: string;
   accuracy: number;
   congruency: number;
@@ -23,7 +24,7 @@ interface UserRow {
 async function getUsers(): Promise<UserRow[]> {
   try {
     return await query<UserRow>(
-      `SELECT u.id, u.whatsapp_jid, u.display_name, u.accuracy, u.congruency, u.joined_at,
+      `SELECT u.id, u.platform, u.platform_user_id, u.display_name, u.accuracy, u.congruency, u.joined_at,
               COUNT(DISTINCT p.id)::int AS total_predictions,
               SUM(CASE WHEN p.paid THEN 1 ELSE 0 END)::int AS paid_predictions,
               COALESCE(SUM(be.delta_sats) FILTER (WHERE be.delta_sats > 0), 0)::int AS total_sats_won
@@ -36,6 +37,10 @@ async function getUsers(): Promise<UserRow[]> {
   } catch {
     return [];
   }
+}
+
+function formatIdentity(user: Pick<UserRow, "platform" | "platform_user_id">): string {
+  return `${user.platform} · ${user.platform_user_id}`;
 }
 
 function relativeDate(dateStr: string): string {
@@ -105,7 +110,7 @@ function UserCard({
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-white truncate">{user.display_name}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {user.total_predictions} predictions · joined {relativeDate(user.joined_at)}
+                {formatIdentity(user)} · {user.total_predictions} predictions · joined {relativeDate(user.joined_at)}
               </p>
             </div>
 

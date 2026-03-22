@@ -89,7 +89,7 @@ class PredictionScheduler:
     # ── Public API ────────────────────────────────────────────
 
     def open_prediction_window(self) -> dict:
-        """Create today's round and notify the WhatsApp bot."""
+        """Create today's round and notify the messaging bot."""
         now = datetime.now(timezone.utc)
         bot_config = self._safe_get_bot_config()
         close_at = now + timedelta(hours=self.config.prediction_window_hours)

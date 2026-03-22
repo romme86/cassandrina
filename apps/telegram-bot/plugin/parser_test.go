@@ -1,8 +1,6 @@
 package plugin
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestParsePrediction(t *testing.T) {
 	tests := []struct {
@@ -65,7 +63,7 @@ func TestParsePrediction(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "leading/trailing whitespace",
+			name:      "leading trailing whitespace",
 			msg:       "  95000 500  ",
 			wantPrice: 95000,
 			wantSats:  500,

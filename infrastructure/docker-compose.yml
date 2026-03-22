@@ -88,18 +88,16 @@ services:
         limits:
           memory: 512M
 
-  # ── WhatsApp Bot (Go) ──────────────────────────────────────
-  whatsapp-bot:
+  # ── Telegram Bot (Go) ──────────────────────────────────────
+  telegram-bot:
     build:
-      context: ../apps/whatsapp-bot
+      context: ../apps/telegram-bot
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: ../.env
     environment:
       REDIS_URL: redis://redis:6379/0
       WEBAPP_API_URL: http://webapp:3000
-    volumes:
-      - whatsapp_session:/data/whatsapp-session
     depends_on:
       redis:
         condition: service_healthy
@@ -112,4 +110,3 @@ services:
 
 volumes:
   timescaledb_data:
-  whatsapp_session:

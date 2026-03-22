@@ -3,7 +3,9 @@ import { z } from "zod";
 // ── API: POST /api/predictions ───────────────────────────────
 
 export const CreatePredictionSchema = z.object({
-  whatsapp_jid: z.string().min(1),
+  platform: z.string().min(1),
+  platform_user_id: z.string().min(1),
+  display_name: z.string().min(1).optional(),
   predicted_price: z.number().positive(),
   sats_amount: z
     .number()
