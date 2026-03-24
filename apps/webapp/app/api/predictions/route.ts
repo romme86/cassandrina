@@ -3,6 +3,8 @@ import { query, withTransaction } from "@/lib/db";
 import { createLndInvoice } from "@/lib/lnd";
 import { CreatePredictionSchema } from "@cassandrina/shared";
 
+export const dynamic = "force-dynamic";
+
 // Rate limiting: max 3 prediction attempts per user identity per 10 minutes
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
