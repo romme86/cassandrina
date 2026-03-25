@@ -24,15 +24,14 @@ WORKDIR /repo/apps/webapp
 RUN pnpm build
 
 # ── Runner (production image) ─────────────────────────────────
-FROM node:20-alpine AS runner
-WORKDIR /app
+FROM deps AS runner
+
+WORKDIR /repo/apps/webapp
 
 ENV NODE_ENV=production
 
-COPY --from=builder /repo/apps/webapp/.next/standalone ./
-COPY --from=builder /repo/apps/webapp/.next/static ./.next/static
-# public/ folder (if it exists)
-COPY --from=builder /repo/apps/webapp/public* ./public/
+COPY --from=builder /repo/apps/webapp/.next ./.next
+COPY --from=builder /repo/apps/webapp/next.config.mjs ./next.config.mjs
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["pnpm", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
