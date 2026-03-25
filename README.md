@@ -480,6 +480,36 @@ This starts:
 - Python trading bot
 - Go Telegram bot
 
+### Raspberry Pi reboot startup
+
+If you want the stack to come back automatically after a Pi reboot:
+
+1. Enable the local daemons you depend on:
+
+```bash
+sudo systemctl enable --now docker
+sudo systemctl enable --now bitcoind
+sudo systemctl enable --now lnd
+```
+
+2. Install the Cassandrina `systemd` unit from the repo root:
+
+```bash
+sudo ./infrastructure/systemd/install-cassandrina-service.sh
+```
+
+3. Reboot and verify:
+
+```bash
+systemctl status cassandrina --no-pager
+docker compose -f infrastructure/docker-compose.yml ps
+```
+
+The installer script creates `/etc/systemd/system/cassandrina.service`,
+enables it on boot, and makes it wait for local `bitcoind` and `lnd` services
+when those unit names exist on the Pi. More detailed notes live in
+`infrastructure/systemd/README.md`.
+
 ### Development Docker run
 
 ```bash

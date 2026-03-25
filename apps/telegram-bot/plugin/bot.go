@@ -184,6 +184,9 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 	case "/start":
 		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, startMessage(b.isAdminUser(msg.From.ID)), replyIDForChat(msg))
 		return true
+	case "/help":
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, helpMessage(b.isAdminUser(msg.From.ID)), replyIDForChat(msg))
+		return true
 	case "/my_stats":
 		if !b.api.HasAdminSecret() {
 			_ = b.telegram.SendMessage(ctx, msg.Chat.ID, "User stats are not configured yet. Set INTERNAL_API_SECRET in the bot and webapp services.", replyIDForChat(msg))
@@ -469,7 +472,15 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Predictions are submitted in the group as '<price> <sats>'. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/my_stats"
+	text := "Predictions are submitted in the group as '<price> <sats>'. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats"
+	if !includeAdmin {
+		return text
+	}
+	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats"
+}
+
+func helpMessage(includeAdmin bool) string {
+	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the prediction window to open in the group.\n2. Submit your prediction in the group as: <price> <sats>\n3. The bot sends you a Lightning invoice in private.\n4. Pay the invoice before it expires.\n5. Only paid predictions count toward the round.\n6. Use /my_stats in private chat to see your stats and Telegram ID.\n\nUser commands:\n/help\n/my_stats\n/start"
 	if !includeAdmin {
 		return text
 	}

@@ -167,6 +167,58 @@ func TestHandlePrivateMessageStartShowsAdminCommandsForAdmin(t *testing.T) {
 	}
 }
 
+func TestHelpCommandShowsUserInstructions(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/help",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "user"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 help reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "How it works:") {
+		t.Fatalf("expected usage section, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "/my_stats") {
+		t.Fatalf("expected my_stats command in help, got %q", gateway.messages[0].text)
+	}
+	if contains(gateway.messages[0].text, "/start_prediction <minutes>") {
+		t.Fatalf("did not expect admin commands for non-admin, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestHelpCommandShowsAdminCommandsForAdmin(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/help",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 help reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "/start_prediction <minutes>") {
+		t.Fatalf("expected admin commands in help, got %q", gateway.messages[0].text)
+	}
+}
+
 func TestMyStatsCommandReturnsUserStatsAndIds(t *testing.T) {
 	client := NewWebappClient("http://cassandrina.test")
 	client.adminSecret = "super-secret"
