@@ -57,7 +57,16 @@ export async function GET(request: NextRequest) {
   );
 
   if (rows.length === 0) {
-    return NextResponse.json({ error: "User not found." }, { status: 404 });
+    return NextResponse.json({
+      user_id: null,
+      display_name: `${platform}-${platformUserId}`,
+      platform_user_id: platformUserId,
+      accuracy: 50,
+      congruency: 50,
+      balance_sats: 0,
+      profit_sats: 0,
+      total_predictions: 0,
+    });
   }
 
   return NextResponse.json(rows[0]);

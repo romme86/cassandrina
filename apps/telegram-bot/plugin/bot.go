@@ -541,11 +541,15 @@ func formatMyStatsMessage(stats *MyStatsResponse, telegramUserID int64) string {
 	if stats == nil {
 		return "No stats available."
 	}
+	internalUserID := "not registered yet"
+	if stats.UserID != nil {
+		internalUserID = strconv.Itoa(*stats.UserID)
+	}
 	return fmt.Sprintf(
-		"My stats\n\nName: %s\nTelegram ID: %d\nInternal user ID: %d\nAccuracy: %.1f%%\nCongruency: %.1f%%\nBalance: %s\nProfit: %s\nPredictions: %d",
+		"My stats\n\nName: %s\nTelegram ID: %d\nInternal user ID: %s\nAccuracy: %.1f%%\nCongruency: %.1f%%\nBalance: %s\nProfit: %s\nPredictions: %d",
 		stats.DisplayName,
 		telegramUserID,
-		stats.UserID,
+		internalUserID,
 		stats.Accuracy,
 		stats.Congruency,
 		formatSats(stats.BalanceSats),

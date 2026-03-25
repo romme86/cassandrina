@@ -161,4 +161,26 @@ describe("admin API routes", () => {
     expect(body.platform_user_id).toBe("123");
     expect(body.total_predictions).toBe(7);
   });
+
+  test("GET /api/internal/users/stats returns default stats for unknown users", async () => {
+    mockQuery.mockResolvedValueOnce([]);
+
+    const req = new NextRequest(
+      "http://localhost/api/internal/users/stats?platform=telegram&platform_user_id=555",
+      {
+        headers: {
+          "x-cassandrina-admin-secret": "super-secret",
+        },
+      }
+    );
+
+    const res = await getInternalUserStats(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.user_id).toBeNull();
+    expect(body.platform_user_id).toBe("555");
+    expect(body.total_predictions).toBe(0);
+    expect(body.accuracy).toBe(50);
+    expect(body.congruency).toBe(50);
+  });
 });

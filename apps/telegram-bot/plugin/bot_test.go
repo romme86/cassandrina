@@ -214,6 +214,44 @@ func TestMyStatsCommandReturnsUserStatsAndIds(t *testing.T) {
 	}
 }
 
+func TestMyStatsCommandShowsDefaultsForUnregisteredUser(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"user_id":null,"display_name":"telegram-555","platform_user_id":"555","accuracy":50,"congruency":50,"balance_sats":0,"profit_sats":0,"total_predictions":0}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/my_stats",
+		Chat: Chat{ID: 555, Type: "private"},
+		From: &TelegramUser{ID: 555, Username: "new-user"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 my_stats reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Internal user ID: not registered yet") {
+		t.Fatalf("expected placeholder internal id, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Predictions: 0") {
+		t.Fatalf("expected zero prediction count, got %q", gateway.messages[0].text)
+	}
+}
+
 func TestAdminStartPredictionCommandUsesInternalSecret(t *testing.T) {
 	client := NewWebappClient("http://cassandrina.test")
 	client.adminSecret = "super-secret"

@@ -60,7 +60,7 @@ type UserStatsRow struct {
 }
 
 type MyStatsResponse struct {
-	UserID           int     `json:"user_id"`
+	UserID           *int    `json:"user_id"`
 	DisplayName      string  `json:"display_name"`
 	PlatformUserID   string  `json:"platform_user_id"`
 	Accuracy         float64 `json:"accuracy"`
