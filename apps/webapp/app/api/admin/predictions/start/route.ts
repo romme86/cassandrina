@@ -5,6 +5,22 @@ import { getRedis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
+async function dropLegacyQuestionDateConstraint() {
+  await query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'prediction_rounds_question_date_key'
+      ) THEN
+        ALTER TABLE prediction_rounds
+          DROP CONSTRAINT prediction_rounds_question_date_key;
+      END IF;
+    END $$;
+  `);
+}
+
 function getLocalParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -64,6 +80,10 @@ export async function POST(request: NextRequest) {
       { status: 422 }
     );
   }
+
+  // Some deployments still carry the old one-round-per-day constraint.
+  // Drop it here so manual rounds can open without a separate migration step.
+  await dropLegacyQuestionDateConstraint();
 
   const [openRounds, configRows] = await Promise.all([
     query<{ id: number }>(

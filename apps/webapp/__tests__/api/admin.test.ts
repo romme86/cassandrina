@@ -51,6 +51,7 @@ describe("admin API routes", () => {
   test("POST /api/admin/predictions/start publishes a new round", async () => {
     mockQuery
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { key: "prediction_target_hour", value: "16" },
         { key: "min_sats", value: "100" },
@@ -83,6 +84,43 @@ describe("admin API routes", () => {
 
     const redis = mockGetRedis.mock.results[0]?.value;
     expect(redis.publish).toHaveBeenCalledTimes(1);
+  });
+
+  test("POST /api/admin/predictions/start drops the legacy one-round-per-day constraint", async () => {
+    mockQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { key: "prediction_target_hour", value: "16" },
+        { key: "min_sats", value: "100" },
+        { key: "max_sats", value: "5000" },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 42,
+          question_date: "2026-03-25",
+          target_hour: 16,
+          open_at: "2026-03-25T12:00:00.000Z",
+          close_at: "2026-03-25T12:05:00.000Z",
+          status: "open",
+        },
+      ]);
+
+    const req = new NextRequest("http://localhost/api/admin/predictions/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cassandrina-admin-secret": "super-secret",
+      },
+      body: JSON.stringify({ minutes: 5 }),
+    });
+
+    const res = await startPrediction(req);
+    expect(res.status).toBe(200);
+    expect(mockQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("DROP CONSTRAINT prediction_rounds_question_date_key")
+    );
   });
 
   test("GET /api/admin/stats/balance returns open-round stats", async () => {
