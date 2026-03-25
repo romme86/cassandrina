@@ -57,7 +57,9 @@ function makeRequest(body: unknown): NextRequest {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  mockQuery.mockReset();
+  mockCreateInvoice.mockReset();
+  mockWithTransaction.mockReset();
   mockWithTransaction.mockImplementation(async (callback) => {
     const client = {
       query: jest
@@ -94,7 +96,7 @@ describe("POST /api/predictions", () => {
 
     const req = makeRequest({
       platform: "telegram",
-      platform_user_id: "1001",
+      platform_user_id: "2001",
       display_name: "alice",
       predicted_price: 95000,
       sats_amount: 500,
@@ -120,7 +122,7 @@ describe("POST /api/predictions", () => {
 
     const req = makeRequest({
       platform: "telegram",
-      platform_user_id: "1001",
+      platform_user_id: "2002",
       display_name: "alice",
       predicted_price: 95000,
       sats_amount: 500,
@@ -131,6 +133,28 @@ describe("POST /api/predictions", () => {
     expect(body.lightning_invoice).toBe("lnbc500n1...");
     expect(body.prediction_id).toBe(99);
     expect(mockWithTransaction).toHaveBeenCalled();
+  });
+
+  test("returns 503 when lightning invoice creation fails", async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ id: 1 }])   // user found
+      .mockResolvedValueOnce([{ id: 42 }])  // open round
+      .mockResolvedValueOnce([]);           // no duplicate
+
+    mockCreateInvoice.mockRejectedValueOnce(new Error("self-signed certificate"));
+
+    const req = makeRequest({
+      platform: "telegram",
+      platform_user_id: "2003",
+      display_name: "alice",
+      predicted_price: 95000,
+      sats_amount: 500,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toMatch(/invoice creation is unavailable/i);
+    expect(mockWithTransaction).not.toHaveBeenCalled();
   });
 
   test("returns 409 for duplicate prediction in same round", async () => {

@@ -5,6 +5,21 @@ import { getRedis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
+interface RoundSummary {
+  id: number;
+  question_date: string;
+  target_hour: number;
+  open_at: string;
+  close_at: string | null;
+  status: string;
+}
+
+interface RoundStats {
+  participant_count: number;
+  paid_count: number;
+  total_sats: number;
+}
+
 async function dropLegacyQuestionDateConstraint() {
   await query(`
     DO $$
@@ -86,18 +101,14 @@ export async function POST(request: NextRequest) {
   await dropLegacyQuestionDateConstraint();
 
   const [openRounds, configRows] = await Promise.all([
-    query<{ id: number }>(
-      "SELECT id FROM prediction_rounds WHERE status = 'open' ORDER BY open_at DESC, id DESC LIMIT 1"
+    query<RoundSummary>(
+      `SELECT id, question_date, target_hour, open_at, close_at, status
+       FROM prediction_rounds
+       WHERE status = 'open'
+       ORDER BY open_at DESC, id DESC`
     ),
     query<{ key: string; value: string }>("SELECT key, value FROM bot_config"),
   ]);
-
-  if (openRounds.length > 0) {
-    return NextResponse.json(
-      { error: "A prediction round is already open." },
-      { status: 409 }
-    );
-  }
 
   const config = Object.fromEntries(configRows.map((row) => [row.key, row.value]));
   const targetHour = Number(config.prediction_target_hour ?? "16");
@@ -109,15 +120,34 @@ export async function POST(request: NextRequest) {
   const openAt = now.toISOString();
   const closeAt = new Date(now.getTime() + minutes * 60_000).toISOString();
   const questionDate = getQuestionDate(now, targetHour, timeZone);
+  const replacedRound = openRounds[0] ?? null;
 
-  const roundRows = await query<{
-    id: number;
-    question_date: string;
-    target_hour: number;
-    open_at: string;
-    close_at: string;
-    status: string;
-  }>(
+  let replacedRoundStats: RoundStats | null = null;
+  if (replacedRound) {
+    const statsRows = await query<RoundStats>(
+      `SELECT COUNT(*)::int AS participant_count,
+              SUM(CASE WHEN paid THEN 1 ELSE 0 END)::int AS paid_count,
+              COALESCE(SUM(CASE WHEN paid THEN sats_amount ELSE 0 END), 0)::int AS total_sats
+       FROM predictions
+       WHERE round_id = $1`,
+      [replacedRound.id]
+    );
+    replacedRoundStats = statsRows[0] ?? {
+      participant_count: 0,
+      paid_count: 0,
+      total_sats: 0,
+    };
+
+    // Retire any currently-open round so a manual override becomes the only active round.
+    await query(
+      `UPDATE prediction_rounds
+       SET status = 'settled', close_at = $1
+       WHERE status = 'open'`,
+      [openAt]
+    );
+  }
+
+  const roundRows = await query<RoundSummary>(
     `INSERT INTO prediction_rounds (question_date, target_hour, open_at, close_at, status)
      VALUES ($1, $2, $3, $4, 'open')
      RETURNING id, question_date, target_hour, open_at, close_at, status`,
@@ -125,8 +155,22 @@ export async function POST(request: NextRequest) {
   );
 
   const round = roundRows[0];
+  const redis = getRedis();
 
-  await getRedis().publish(
+  if (replacedRound) {
+    await redis.publish(
+      "cassandrina:prediction:close",
+      JSON.stringify({
+        round_id: replacedRound.id,
+        participant_count: replacedRoundStats?.participant_count ?? 0,
+        paid_count: replacedRoundStats?.paid_count ?? 0,
+        total_sats: replacedRoundStats?.total_sats ?? 0,
+        close_reason: "admin_override",
+      })
+    );
+  }
+
+  await redis.publish(
     "cassandrina:prediction:open",
     JSON.stringify({
       round_id: round.id,
@@ -146,5 +190,6 @@ export async function POST(request: NextRequest) {
     target_timezone: timeZone,
     close_at: round.close_at,
     minutes,
+    replaced_round_id: replacedRound?.id ?? null,
   });
 }

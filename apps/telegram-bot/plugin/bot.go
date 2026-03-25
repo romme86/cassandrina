@@ -222,6 +222,9 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 			resp.QuestionDate,
 			formatUTC(resp.CloseAt),
 		)
+		if resp.ReplacedRoundID != nil {
+			reply = fmt.Sprintf("Replaced round #%d.\n\n%s", *resp.ReplacedRoundID, reply)
+		}
 		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
 		return true
 	case "/show_balance_stats":

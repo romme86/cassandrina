@@ -100,8 +100,16 @@ export async function POST(request: NextRequest) {
 
   const memo = `Cassandrina prediction - round ${roundId}`;
 
-  // Create LND invoice
-  const invoice = await createLndInvoice(sats_amount, memo, 3600);
+  let invoice;
+  try {
+    invoice = await createLndInvoice(sats_amount, memo, 3600);
+  } catch (error) {
+    console.error("[predictions] failed to create Lightning invoice", error);
+    return NextResponse.json(
+      { error: "Lightning invoice creation is unavailable right now. Please try again shortly." },
+      { status: 503 }
+    );
+  }
 
   // Store prediction and invoice metadata atomically
   const prediction = await withTransaction(async (client) => {

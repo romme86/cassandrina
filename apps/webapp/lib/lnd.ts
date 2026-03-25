@@ -2,11 +2,71 @@
  * Server-side LND invoice creation via the REST API.
  * Used by POST /api/predictions to generate Lightning invoices.
  */
+import fs from "node:fs";
+import https from "node:https";
 
 export interface InvoiceResult {
   paymentRequest: string;
   rHashHex: string;
   expiresAt: string;
+}
+
+interface HttpResponse {
+  status: number;
+  body: string;
+}
+
+function getLndTlsOptions(): Pick<https.RequestOptions, "ca" | "rejectUnauthorized"> {
+  const certPath = process.env.LND_TLS_CERT_PATH;
+  if (certPath) {
+    return {
+      ca: fs.readFileSync(certPath),
+      rejectUnauthorized: true,
+    };
+  }
+
+  // Cassandrina commonly talks to a self-signed LND endpoint on the local node.
+  // Keep that working by default unless verification is explicitly forced on.
+  return {
+    rejectUnauthorized: process.env.LND_TLS_SKIP_VERIFY === "false",
+  };
+}
+
+async function postJson(urlString: string, body: string, headers: Record<string, string>): Promise<HttpResponse> {
+  const url = new URL(urlString);
+
+  return await new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        path: `${url.pathname}${url.search}`,
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Length": Buffer.byteLength(body).toString(),
+        },
+        ...getLndTlsOptions(),
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        res.on("end", () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 export async function createLndInvoice(
@@ -23,24 +83,18 @@ export async function createLndInvoice(
   }
 
   const url = `https://${host}:${port}/v1/invoices`;
+  const body = JSON.stringify({ value: amountSats, memo, expiry: expirySeconds });
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Grpc-Metadata-Macaroon": macaroon,
-    },
-    body: JSON.stringify({ value: amountSats, memo, expiry: expirySeconds }),
-    // Skip TLS verification for self-signed LND cert on Pi
-    // In production you'd load the cert from LND_TLS_CERT_PATH
+  const res = await postJson(url, body, {
+    "Content-Type": "application/json",
+    "Grpc-Metadata-Macaroon": macaroon,
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`LND invoice creation failed: HTTP ${res.status} — ${text}`);
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`LND invoice creation failed: HTTP ${res.status} — ${res.body}`);
   }
 
-  const data = await res.json();
+  const data = JSON.parse(res.body) as { payment_request: string; r_hash: string };
   return {
     paymentRequest: data.payment_request as string,
     rHashHex: Buffer.from(data.r_hash as string, "base64").toString("hex"),

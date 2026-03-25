@@ -348,6 +348,47 @@ func TestAdminStartPredictionCommandUsesInternalSecret(t *testing.T) {
 	}
 }
 
+func TestAdminStartPredictionCommandMentionsReplacedRound(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"round_id":12,"replaced_round_id":7,"question_date":"2026-03-25","target_hour":16,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:05:00Z","minutes":5}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			GroupChatID:  -42,
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/start_prediction 5",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 admin reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Replaced round #7.") {
+		t.Fatalf("expected replaced-round message, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Started round #12 for 5 minutes.") {
+		t.Fatalf("unexpected message %q", gateway.messages[0].text)
+	}
+}
+
 func TestAdminShowUserStatsFormatsReadableMessage(t *testing.T) {
 	client := NewWebappClient("http://cassandrina.test")
 	client.adminSecret = "super-secret"

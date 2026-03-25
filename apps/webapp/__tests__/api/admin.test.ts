@@ -86,6 +86,79 @@ describe("admin API routes", () => {
     expect(redis.publish).toHaveBeenCalledTimes(1);
   });
 
+  test("POST /api/admin/predictions/start overwrites an existing open round", async () => {
+    mockQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          question_date: "2026-03-25",
+          target_hour: 16,
+          open_at: "2026-03-25T08:00:00.000Z",
+          close_at: "2026-03-25T14:00:00.000Z",
+          status: "open",
+        },
+      ])
+      .mockResolvedValueOnce([
+        { key: "prediction_target_hour", value: "16" },
+        { key: "min_sats", value: "100" },
+        { key: "max_sats", value: "5000" },
+      ])
+      .mockResolvedValueOnce([
+        { participant_count: 2, paid_count: 1, total_sats: 700 },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 42,
+          question_date: "2026-03-25",
+          target_hour: 16,
+          open_at: "2026-03-25T12:00:00.000Z",
+          close_at: "2026-03-25T12:05:00.000Z",
+          status: "open",
+        },
+      ]);
+
+    const req = new NextRequest("http://localhost/api/admin/predictions/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cassandrina-admin-secret": "super-secret",
+      },
+      body: JSON.stringify({ minutes: 5 }),
+    });
+
+    const res = await startPrediction(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.round_id).toBe(42);
+    expect(body.replaced_round_id).toBe(7);
+
+    expect(mockQuery).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("WHERE round_id = $1"),
+      [7]
+    );
+    expect(mockQuery).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining("SET status = 'settled'"),
+      [expect.any(String)]
+    );
+
+    const redis = mockGetRedis.mock.results[0]?.value;
+    expect(redis.publish).toHaveBeenCalledTimes(2);
+    expect(redis.publish).toHaveBeenNthCalledWith(
+      1,
+      "cassandrina:prediction:close",
+      expect.stringContaining("\"close_reason\":\"admin_override\"")
+    );
+    expect(redis.publish).toHaveBeenNthCalledWith(
+      2,
+      "cassandrina:prediction:open",
+      expect.stringContaining("\"round_id\":42")
+    );
+  });
+
   test("POST /api/admin/predictions/start drops the legacy one-round-per-day constraint", async () => {
     mockQuery
       .mockResolvedValueOnce([])

@@ -31,12 +31,13 @@ type PredictionResponse struct {
 }
 
 type StartPredictionRoundResponse struct {
-	RoundID        int    `json:"round_id"`
-	QuestionDate   string `json:"question_date"`
-	TargetHour     int    `json:"target_hour"`
-	TargetTimeZone string `json:"target_timezone"`
-	CloseAt        string `json:"close_at"`
-	Minutes        int    `json:"minutes"`
+	RoundID         int    `json:"round_id"`
+	ReplacedRoundID *int   `json:"replaced_round_id"`
+	QuestionDate    string `json:"question_date"`
+	TargetHour      int    `json:"target_hour"`
+	TargetTimeZone  string `json:"target_timezone"`
+	CloseAt         string `json:"close_at"`
+	Minutes         int    `json:"minutes"`
 }
 
 type BalanceStatsResponse struct {
