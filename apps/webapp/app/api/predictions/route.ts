@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
   // Find open round
   const roundRows = await query<{ id: number }>(
-    "SELECT id FROM prediction_rounds WHERE status = 'open' ORDER BY question_date DESC LIMIT 1"
+    "SELECT id FROM prediction_rounds WHERE status = 'open' ORDER BY open_at DESC, id DESC LIMIT 1"
   );
   if (roundRows.length === 0) {
     return NextResponse.json(

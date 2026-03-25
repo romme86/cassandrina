@@ -32,7 +32,7 @@ async function getCurrentRound(): Promise<PredictionRound | null> {
     const rows = await query<PredictionRound>(
       `SELECT * FROM prediction_rounds
        WHERE status IN ('open', 'closed')
-       ORDER BY question_date DESC LIMIT 1`
+       ORDER BY open_at DESC, id DESC LIMIT 1`
     );
     return rows[0] ?? null;
   } catch {

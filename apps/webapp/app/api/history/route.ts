@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
                 t.pnl_sats, t.status,
                 r.confidence_score
          FROM trades t
-         LEFT JOIN prediction_rounds r ON r.question_date = t.opened_at::date
+         LEFT JOIN prediction_rounds r ON r.id = t.round_id
          WHERE ${where}
          ORDER BY t.opened_at DESC
          LIMIT 200`,
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
                 COALESCE(SUM(pnl_sats), 0)::int AS net_pnl,
                 COALESCE(ROUND(AVG(r.confidence_score)), 0)::int AS avg_confidence
          FROM trades t
-         LEFT JOIN prediction_rounds r ON r.question_date = t.opened_at::date
+         LEFT JOIN prediction_rounds r ON r.id = t.round_id
          WHERE ${where}`,
         params
       ),

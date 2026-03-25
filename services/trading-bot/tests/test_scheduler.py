@@ -19,6 +19,7 @@ from cassandrina.scheduler import (
 @pytest.fixture
 def config():
     return SchedulerConfig(
+        scheduler_timezone="Europe/Rome",
         prediction_open_hour=8,
         prediction_target_hour=16,
         prediction_window_hours=6,
@@ -41,6 +42,11 @@ def mock_db():
     db = MagicMock()
     db.get_paid_predictions_count = MagicMock(return_value=0)
     db.get_round_status = MagicMock(return_value=RoundStatus.OPEN)
+    db.get_open_round = MagicMock(return_value=None)
+    db.get_rounds_for_settlement = MagicMock(return_value=[])
+    db.get_round_total_paid_sats = MagicMock(return_value=0)
+    db.get_paid_predictions = MagicMock(return_value=[])
+    db.get_open_trade_for_round = MagicMock(return_value=None)
     db.close_round = MagicMock()
     db.create_round = MagicMock(return_value={"id": 1})
     return db
@@ -69,6 +75,13 @@ class TestPredictionWindowOpen:
         import json
         data = json.loads(message)
         assert "round_id" in data
+        assert data["target_timezone"] == "Europe/Rome"
+
+    def test_does_not_open_second_round_when_one_is_already_open(self, scheduler, mock_db):
+        mock_db.get_open_round.return_value = {"id": 7}
+        round_data = scheduler.open_prediction_window()
+        assert round_data["id"] == 7
+        mock_db.create_round.assert_not_called()
 
 
 # ── Prediction window close ──────────────────────────────────
@@ -129,3 +142,23 @@ class TestTradeTrigger:
         scheduler.on_trade_execute = MagicMock()
         scheduler.try_close_window(round_id=1)
         scheduler.on_trade_execute.assert_called_once_with(round_id=1)
+
+
+class TestSettlement:
+    def test_settles_all_rounds_for_the_target_date(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_000
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            market_data_client=market_data,
+        )
+        mock_db.get_rounds_for_settlement.return_value = [
+            {"id": 1, "status": "closed"},
+            {"id": 2, "status": "closed"},
+        ]
+
+        scheduler._job_settle_round()
+
+        assert mock_db.settle_round.call_args_list == [call(1, 100_000), call(2, 100_000)]

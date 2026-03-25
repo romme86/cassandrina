@@ -40,10 +40,11 @@ async function getRound(id: number): Promise<PredictionRound | null> {
 
 async function getOpenTrade(roundId: number): Promise<Trade | null> {
   const rows = await query<Trade>(
-    `SELECT t.* FROM trades t
-     JOIN prediction_rounds r ON r.id = $1
-     WHERE t.opened_at::date = r.question_date
-     ORDER BY t.opened_at DESC LIMIT 1`,
+    `SELECT *
+     FROM trades
+     WHERE round_id = $1
+     ORDER BY opened_at DESC
+     LIMIT 1`,
     [roundId]
   );
   return rows[0] ?? null;

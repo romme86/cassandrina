@@ -54,11 +54,6 @@ class PostgresRepository:
                 """
                 INSERT INTO prediction_rounds (question_date, target_hour, open_at, close_at, status)
                 VALUES (%s, %s, %s, %s, 'open')
-                ON CONFLICT (question_date)
-                DO UPDATE SET
-                    target_hour = EXCLUDED.target_hour,
-                    open_at = COALESCE(prediction_rounds.open_at, EXCLUDED.open_at),
-                    close_at = EXCLUDED.close_at
                 RETURNING *
                 """,
                 (date, target_hour, open_at, close_at),
@@ -72,14 +67,14 @@ class PostgresRepository:
                 SELECT *
                 FROM prediction_rounds
                 WHERE status = 'open'
-                ORDER BY question_date DESC
+                ORDER BY open_at DESC, id DESC
                 LIMIT 1
                 """
             )
             row = cur.fetchone()
             return dict(row) if row else None
 
-    def get_round_for_settlement(self, target_date: date | None = None) -> dict | None:
+    def get_rounds_for_settlement(self, target_date: date | None = None) -> list[dict]:
         target_date = target_date or datetime.now(timezone.utc).date()
         with self._cursor() as cur:
             cur.execute(
@@ -87,13 +82,11 @@ class PostgresRepository:
                 SELECT *
                 FROM prediction_rounds
                 WHERE question_date = %s AND status IN ('open', 'closed')
-                ORDER BY question_date DESC
-                LIMIT 1
+                ORDER BY open_at ASC, id ASC
                 """,
                 (target_date,),
             )
-            row = cur.fetchone()
-            return dict(row) if row else None
+            return [dict(row) for row in cur.fetchall()]
 
     def close_round(self, round_id: int) -> None:
         with self._cursor(commit=True) as cur:

@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS prediction_rounds (
     id                      SERIAL PRIMARY KEY,
-    question_date           DATE NOT NULL UNIQUE,
+    question_date           DATE NOT NULL,
     target_hour             INT NOT NULL CHECK (target_hour BETWEEN 0 AND 23),
     open_at                 TIMESTAMPTZ NOT NULL,
     close_at                TIMESTAMPTZ,
@@ -143,6 +143,7 @@ ON CONFLICT (key) DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_predictions_round_id ON predictions(round_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_user_id ON predictions(user_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_paid ON predictions(paid);
+CREATE INDEX IF NOT EXISTS idx_prediction_rounds_question_date ON prediction_rounds(question_date);
 CREATE INDEX IF NOT EXISTS idx_trades_round_id ON trades(round_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_balance_entries_user_id ON balance_entries(user_id);

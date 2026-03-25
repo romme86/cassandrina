@@ -55,7 +55,7 @@ async function getRounds(): Promise<RoundWithMeta[]> {
        FROM prediction_rounds r
        LEFT JOIN predictions p ON p.round_id = r.id
        GROUP BY r.id
-       ORDER BY r.question_date DESC
+       ORDER BY r.open_at DESC, r.id DESC
        LIMIT 50`
     );
   } catch {

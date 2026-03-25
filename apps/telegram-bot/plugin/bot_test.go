@@ -3,12 +3,15 @@ package plugin
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
 
 type sentMessage struct {
-	chatID          int64
-	text            string
+	chatID           int64
+	text             string
 	replyToMessageID int
 }
 
@@ -29,6 +32,12 @@ func (f *fakeTelegramGateway) SendMessage(_ context.Context, chatID int64, text 
 
 func (f *fakeTelegramGateway) DeepLink(context.Context) string {
 	return f.deepLinkURL
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestHandleRedisEventPredictionClose(t *testing.T) {
@@ -53,6 +62,29 @@ func TestHandleRedisEventPredictionClose(t *testing.T) {
 	}
 }
 
+func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleRedisEvent("cassandrina:prediction:open", map[string]interface{}{
+		"target_hour":     float64(8),
+		"target_timezone": "Europe/Rome",
+		"min_sats":        float64(100),
+		"max_sats":        float64(5000),
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 group message, got %d", len(gateway.messages))
+	}
+	if want := "08:00 Europe/Rome"; !contains(gateway.messages[0].text, want) {
+		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+}
+
 func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 	gateway := &fakeTelegramGateway{sendError: errors.New("dm blocked"), deepLinkURL: "https://t.me/cassandrina_bot"}
 	bot := &Bot{
@@ -66,6 +98,234 @@ func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 	message, ok := bot.pullPendingInvoice(123)
 	if !ok || message != "pending" {
 		t.Fatalf("expected pending invoice to round-trip through the queue")
+	}
+}
+
+func TestHandleGroupMessageReturnsAPIErrorsToGroup(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/predictions" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusConflict,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":"No open prediction round"}`)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleGroupMessage(context.Background(), &Message{
+		MessageID: 77,
+		Text:      "95000 500",
+		Chat:      Chat{ID: -42, Type: "group"},
+		From:      &TelegramUser{ID: 123, Username: "alice"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 group reply, got %d", len(gateway.messages))
+	}
+	if gateway.messages[0].chatID != -42 {
+		t.Fatalf("expected reply in group chat, got %d", gateway.messages[0].chatID)
+	}
+	if gateway.messages[0].replyToMessageID != 77 {
+		t.Fatalf("expected reply to original message, got %d", gateway.messages[0].replyToMessageID)
+	}
+	if gateway.messages[0].text != "No open prediction round" {
+		t.Fatalf("expected API error to be forwarded, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestHandlePrivateMessageStartShowsAdminCommandsForAdmin(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/start",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 private reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "/start_prediction <minutes>") {
+		t.Fatalf("expected admin help text, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestMyStatsCommandReturnsUserStatsAndIds(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/internal/users/stats" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("platform_user_id"); got != "123" {
+			t.Fatalf("expected platform_user_id=123, got %q", got)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"user_id":42,"display_name":"Alice","platform_user_id":"123","accuracy":61.5,"congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/my_stats",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "alice"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 my_stats reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Telegram ID: 123") {
+		t.Fatalf("expected telegram id in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Internal user ID: 42") {
+		t.Fatalf("expected internal id in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Predictions: 7") {
+		t.Fatalf("expected prediction count in output, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestAdminStartPredictionCommandUsesInternalSecret(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/admin/predictions/start" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if got := r.Header.Get(adminSecretHeader); got != "super-secret" {
+			t.Fatalf("expected admin secret header, got %q", got)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"round_id":12,"question_date":"2026-03-25","target_hour":16,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:30:00Z","minutes":30}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			GroupChatID:  -42,
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/start_prediction 30",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 admin reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Started round #12 for 30 minutes.") {
+		t.Fatalf("unexpected message %q", gateway.messages[0].text)
+	}
+}
+
+func TestAdminShowUserStatsFormatsReadableMessage(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/admin/stats/users" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`[
+				{"id":1,"display_name":"Alice","accuracy":61.5,"congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7},
+				{"id":2,"display_name":"Bob","accuracy":55.0,"congruency":49.0,"balance_sats":900,"profit_sats":-100,"total_predictions":4}
+			]`)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/show_user_stats",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 stats message, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "1. Alice") {
+		t.Fatalf("expected Alice in stats output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Bal 1,234 sats | PnL +234 sats") {
+		t.Fatalf("expected formatted sats output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "2. Bob") {
+		t.Fatalf("expected Bob in stats output, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestNonAdminCommandIsRejected(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{999: {}},
+		},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/show_balance_stats",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "not-admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 rejection message, got %d", len(gateway.messages))
+	}
+	if !strings.Contains(gateway.messages[0].text, "configured Telegram admins") {
+		t.Fatalf("unexpected rejection text %q", gateway.messages[0].text)
 	}
 }
 

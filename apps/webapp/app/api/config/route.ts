@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { isAdminRequest } from "@/lib/admin";
 import { BotConfigSchema } from "@cassandrina/shared";
 
 export const dynamic = "force-dynamic";
 
-function isAdmin(request: NextRequest): boolean {
-  return request.cookies.get("cassandrina_admin")?.value === "1";
-}
-
 export async function GET(request: NextRequest) {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const rows = await query<{ key: string; value: string }>(
@@ -20,7 +17,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAdmin(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

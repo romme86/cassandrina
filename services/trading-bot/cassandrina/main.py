@@ -36,6 +36,7 @@ def main() -> None:
     db = PostgresRepository(os.environ.get("DATABASE_URL"))
 
     config = SchedulerConfig(
+        scheduler_timezone=os.environ.get("SCHEDULER_TIMEZONE", "UTC"),
         prediction_open_hour=int(os.environ.get("PREDICTION_OPEN_HOUR", 8)),
         prediction_target_hour=int(os.environ.get("PREDICTION_TARGET_HOUR", 16)),
         prediction_window_hours=int(os.environ.get("PREDICTION_WINDOW_HOURS", 6)),

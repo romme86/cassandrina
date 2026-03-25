@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all environment-sourced configuration for the bot.
 type Config struct {
-	RedisURL     string
-	WebappAPIURL string
-	BotToken     string
-	GroupChatID  int64
-	MinSats      int
-	MaxSats      int
+	RedisURL          string
+	WebappAPIURL      string
+	InternalAPISecret string
+	BotToken          string
+	GroupChatID       int64
+	AdminUserIDs      map[int64]struct{}
+	MinSats           int
+	MaxSats           int
 }
 
 // LoadConfig reads configuration from environment variables.
@@ -24,10 +27,11 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		RedisURL:     getEnvOrDefault("REDIS_URL", "redis://redis:6379/0"),
-		WebappAPIURL: getEnvOrDefault("WEBAPP_API_URL", "http://webapp:3000"),
-		BotToken:     os.Getenv("TELEGRAM_BOT_TOKEN"),
-		GroupChatID:  groupChatID,
+		RedisURL:          getEnvOrDefault("REDIS_URL", "redis://redis:6379/0"),
+		WebappAPIURL:      getEnvOrDefault("WEBAPP_API_URL", "http://webapp:3000"),
+		InternalAPISecret: os.Getenv("INTERNAL_API_SECRET"),
+		BotToken:          os.Getenv("TELEGRAM_BOT_TOKEN"),
+		GroupChatID:       groupChatID,
 	}
 	if cfg.BotToken == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
@@ -40,6 +44,11 @@ func LoadConfig() (*Config, error) {
 	cfg.MaxSats, err = getEnvInt("MAX_SATS", 5000)
 	if err != nil {
 		return nil, fmt.Errorf("MAX_SATS: %w", err)
+	}
+
+	cfg.AdminUserIDs, err = getEnvInt64Set("TELEGRAM_ADMIN_USER_IDS")
+	if err != nil {
+		return nil, fmt.Errorf("TELEGRAM_ADMIN_USER_IDS: %w", err)
 	}
 
 	return cfg, nil
@@ -66,4 +75,26 @@ func getRequiredEnvInt64(key string) (int64, error) {
 		return 0, fmt.Errorf("%s is required", key)
 	}
 	return strconv.ParseInt(v, 10, 64)
+}
+
+func getEnvInt64Set(key string) (map[int64]struct{}, error) {
+	values := make(map[int64]struct{})
+	raw := os.Getenv(key)
+	if raw == "" {
+		return values, nil
+	}
+
+	for _, part := range strings.Split(raw, ",") {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(item, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		values[id] = struct{}{}
+	}
+
+	return values, nil
 }

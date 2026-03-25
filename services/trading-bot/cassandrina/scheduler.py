@@ -1,13 +1,13 @@
 """
 Prediction Scheduler for Cassandrina.
 
-Manages the daily prediction cycle:
-  08:00 UTC — open prediction window (configurable)
+Manages the daily prediction cycle in a configurable local timezone:
+  08:00 — open prediction window (configurable)
   08:00–14:00 — collect predictions (6h window, configurable)
   14:00 — close window (early if all users paid)
   08:00 — 8h report (8h before 16:00 target)
   16:00 — evaluate predictions, update scores, trigger trade
-  Sunday 20:00 UTC — weekly vote
+  Sunday 20:00 — weekly vote
 
 Uses APScheduler for job scheduling and Redis pub/sub for outbound events.
 """
@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 from cassandrina.profit import distribute_profit
 from cassandrina.scoring import (
@@ -43,6 +44,7 @@ class RoundStatus(str, Enum):
 
 @dataclass
 class SchedulerConfig:
+    scheduler_timezone: str = "UTC"
     prediction_open_hour: int = 8
     prediction_target_hour: int = 16
     prediction_window_hours: int = 6
@@ -77,6 +79,7 @@ class PredictionScheduler:
         market_data_client=None,
     ):
         self.config = config
+        self._scheduler_tz = ZoneInfo(self.config.scheduler_timezone)
         self._redis = redis_client
         self._db = db
         self._lnd = lnd_client
@@ -90,13 +93,18 @@ class PredictionScheduler:
 
     def open_prediction_window(self) -> dict:
         """Create today's round and notify the messaging bot."""
-        now = datetime.now(timezone.utc)
+        existing_round = self._db.get_open_round()
+        if existing_round:
+            return existing_round
+
+        local_now = datetime.now(self._scheduler_tz)
         bot_config = self._safe_get_bot_config()
-        close_at = now + timedelta(hours=self.config.prediction_window_hours)
+        open_at = local_now.astimezone(timezone.utc)
+        close_at = (local_now + timedelta(hours=self.config.prediction_window_hours)).astimezone(timezone.utc)
         round_data = self._db.create_round(
-            date=now.date(),
+            date=local_now.date(),
             target_hour=self.config.prediction_target_hour,
-            open_at=now,
+            open_at=open_at,
             close_at=close_at,
         )
         round_id = round_data["id"]
@@ -104,7 +112,9 @@ class PredictionScheduler:
             "prediction:open",
             {
                 "round_id": round_id,
+                "question_date": str(round_data["question_date"]),
                 "target_hour": self.config.prediction_target_hour,
+                "target_timezone": self.config.scheduler_timezone,
                 "min_sats": int(bot_config.get("min_sats", 100)),
                 "max_sats": int(bot_config.get("max_sats", 5000)),
                 "close_at": close_at.isoformat(),
@@ -175,7 +185,7 @@ class PredictionScheduler:
         """Register APScheduler jobs and start the scheduler."""
         from apscheduler.schedulers.background import BackgroundScheduler
 
-        self._scheduler = BackgroundScheduler(timezone="UTC")
+        self._scheduler = BackgroundScheduler(timezone=self._scheduler_tz)
 
         # Open prediction window daily
         self._scheduler.add_job(
@@ -268,63 +278,66 @@ class PredictionScheduler:
             self.send_8h_report(round_data["id"])
 
     def _job_settle_round(self) -> None:
-        round_data = self._db.get_round_for_settlement()
-        if not round_data or not self._market_data:
+        round_date = datetime.now(self._scheduler_tz).date()
+        rounds = self._db.get_rounds_for_settlement(round_date)
+        if not rounds or not self._market_data:
             return
-
-        if round_data["status"] == "open":
-            self._verify_round_payments(round_data["id"])
-            if self._db.get_paid_predictions_count(round_data["id"]) > 0:
-                self.try_close_window(round_data["id"], close_reason="target_time")
-            else:
-                self._db.close_round(round_data["id"])
 
         actual_price = self._market_data.get_btc_price()
-        self._db.settle_round(round_data["id"], actual_price)
-
         bot_config = self._safe_get_bot_config()
         max_sats = int(bot_config.get("max_sats", 5000))
-        participants = self._db.get_paid_predictions(round_data["id"])
-        for participant in participants:
-            correct = is_prediction_correct(participant["predicted_price"], actual_price)
-            round_congruency = compute_congruency(participant["sats_amount"], max_sats)
-            accuracy = update_accuracy(float(participant["accuracy"]), correct)
-            congruency = update_congruency(float(participant["congruency"]), round_congruency)
-            self._db.update_user_scores(participant["user_id"], accuracy, congruency)
 
-        trade = self._db.get_open_trade_for_round(round_data["id"])
-        if not trade:
-            return
+        for round_data in rounds:
+            if round_data["status"] == "open":
+                self._verify_round_payments(round_data["id"])
+                if self._db.get_paid_predictions_count(round_data["id"]) > 0:
+                    self.try_close_window(round_data["id"], close_reason="target_time")
+                else:
+                    self._db.close_round(round_data["id"])
 
-        pnl_sats, status = self._compute_trade_outcome(trade, actual_price)
-        self._db.close_trade(trade["id"], status=status, pnl_sats=pnl_sats)
-        distributions = distribute_profit(
-            pnl_sats,
-            [
-                {"user_id": p["user_id"], "sats_invested": p["sats_amount"]}
-                for p in participants
-            ],
-        )
-        self._db.add_balance_entries(
-            [
+            self._db.settle_round(round_data["id"], actual_price)
+
+            participants = self._db.get_paid_predictions(round_data["id"])
+            for participant in participants:
+                correct = is_prediction_correct(participant["predicted_price"], actual_price)
+                round_congruency = compute_congruency(participant["sats_amount"], max_sats)
+                accuracy = update_accuracy(float(participant["accuracy"]), correct)
+                congruency = update_congruency(float(participant["congruency"]), round_congruency)
+                self._db.update_user_scores(participant["user_id"], accuracy, congruency)
+
+            trade = self._db.get_open_trade_for_round(round_data["id"])
+            if not trade:
+                continue
+
+            pnl_sats, status = self._compute_trade_outcome(trade, actual_price)
+            self._db.close_trade(trade["id"], status=status, pnl_sats=pnl_sats)
+            distributions = distribute_profit(
+                pnl_sats,
+                [
+                    {"user_id": p["user_id"], "sats_invested": p["sats_amount"]}
+                    for p in participants
+                ],
+            )
+            self._db.add_balance_entries(
+                [
+                    {
+                        "user_id": user_id,
+                        "round_id": round_data["id"],
+                        "delta_sats": delta_sats,
+                        "reason": f"trade_{status}",
+                    }
+                    for user_id, delta_sats in distributions.items()
+                ]
+            )
+            self._publish(
+                f"trade:{status}",
                 {
-                    "user_id": user_id,
                     "round_id": round_data["id"],
-                    "delta_sats": delta_sats,
-                    "reason": f"trade_{status}",
-                }
-                for user_id, delta_sats in distributions.items()
-            ]
-        )
-        self._publish(
-            f"trade:{status}",
-            {
-                "round_id": round_data["id"],
-                "trade_id": trade["id"],
-                "status": status,
-                "pnl_sats": pnl_sats,
-            },
-        )
+                    "trade_id": trade["id"],
+                    "status": status,
+                    "pnl_sats": pnl_sats,
+                },
+            )
 
     # ── Redis helper ──────────────────────────────────────────
 
