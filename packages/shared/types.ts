@@ -18,7 +18,11 @@ export interface PredictionRound {
   close_at: string | null;
   polymarket_probability: number | null;
   status: "open" | "closed" | "settled";
+  btc_target_low_price: number | null;
+  btc_target_high_price: number | null;
   btc_target_price: number | null;
+  btc_actual_low_price: number | null;
+  btc_actual_high_price: number | null;
   btc_actual_price: number | null;
   confidence_score: number | null;
   strategy_used: "A" | "B" | "C" | "D" | "E" | null;
@@ -28,6 +32,8 @@ export interface Prediction {
   id: number;
   round_id: number;
   user_id: number;
+  predicted_low_price: number;
+  predicted_high_price: number;
   predicted_price: number;
   sats_amount: number;
   lightning_invoice: string | null;

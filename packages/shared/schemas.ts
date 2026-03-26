@@ -6,13 +6,17 @@ export const CreatePredictionSchema = z.object({
   platform: z.string().min(1),
   platform_user_id: z.string().min(1),
   display_name: z.string().min(1).optional(),
-  predicted_price: z.number().positive(),
+  predicted_low_price: z.number().positive(),
+  predicted_high_price: z.number().positive(),
   sats_amount: z
     .number()
     .int()
     .min(1, "Must be at least 1 sat")
     .max(100_000, "Maximum 100,000 sats"),
   round_id: z.number().int().positive().optional(),
+}).refine((input) => input.predicted_high_price >= input.predicted_low_price, {
+  message: "predicted_high_price must be greater than or equal to predicted_low_price",
+  path: ["predicted_high_price"],
 });
 
 export type CreatePredictionInput = z.infer<typeof CreatePredictionSchema>;

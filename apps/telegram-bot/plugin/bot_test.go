@@ -61,7 +61,7 @@ func TestHandleRedisEventPredictionClose(t *testing.T) {
 	if len(gateway.messages) != 1 {
 		t.Fatalf("expected 1 group message, got %d", len(gateway.messages))
 	}
-	if want := "Prediction window closed"; !contains(gateway.messages[0].text, want) {
+	if want := "Prediction window is closed"; !contains(gateway.messages[0].text, want) {
 		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
 	}
 }
@@ -105,30 +105,17 @@ func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 	}
 }
 
-func TestHandleGroupMessageReturnsAPIErrorsToGroup(t *testing.T) {
-	client := NewWebappClient("http://cassandrina.test")
-	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path != "/api/predictions" {
-			t.Fatalf("unexpected path %s", r.URL.Path)
-		}
-		return &http.Response{
-			StatusCode: http.StatusConflict,
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"error":"No open prediction round"}`)),
-		}, nil
-	})}
-
+func TestHandleGroupMessageRedirectsPredictionAttemptsToPrivateChat(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{
 		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
-		api:             client,
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
 	}
 
 	bot.handleGroupMessage(context.Background(), &Message{
 		MessageID: 77,
-		Text:      "95000 500",
+		Text:      "93000 97000 500",
 		Chat:      Chat{ID: -42, Type: "group"},
 		From:      &TelegramUser{ID: 123, Username: "alice"},
 	})
@@ -142,8 +129,8 @@ func TestHandleGroupMessageReturnsAPIErrorsToGroup(t *testing.T) {
 	if gateway.messages[0].replyToMessageID != 77 {
 		t.Fatalf("expected reply to original message, got %d", gateway.messages[0].replyToMessageID)
 	}
-	if gateway.messages[0].text != "No open prediction round" {
-		t.Fatalf("expected API error to be forwarded, got %q", gateway.messages[0].text)
+	if !contains(gateway.messages[0].text, "private chat") {
+		t.Fatalf("expected redirect to private chat, got %q", gateway.messages[0].text)
 	}
 }
 

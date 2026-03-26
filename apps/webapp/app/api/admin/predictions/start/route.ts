@@ -91,10 +91,10 @@ export async function POST(request: NextRequest) {
   ]);
 
   const config = Object.fromEntries(configRows.map((row) => [row.key, row.value]));
-  const targetHour = Number(config.prediction_target_hour ?? "16");
+  const targetHour = Number(config.prediction_target_hour ?? "19");
   const minSats = Number(config.min_sats ?? "100");
   const maxSats = Number(config.max_sats ?? "5000");
-  const timeZone = process.env.SCHEDULER_TIMEZONE ?? "UTC";
+  const timeZone = process.env.SCHEDULER_TIMEZONE ?? "Europe/Zurich";
 
   const now = new Date();
   const openAt = now.toISOString();

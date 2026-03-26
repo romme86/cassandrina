@@ -48,8 +48,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { platform, platform_user_id, display_name, predicted_price, sats_amount } = parsed.data;
+  const {
+    platform,
+    platform_user_id,
+    display_name,
+    predicted_low_price,
+    predicted_high_price,
+    sats_amount,
+  } = parsed.data;
   const identityKey = `${platform}:${platform_user_id}`;
+  const predicted_price = (predicted_low_price + predicted_high_price) / 2;
 
   if (!(await checkRateLimit(identityKey))) {
     return NextResponse.json(
@@ -120,10 +128,18 @@ export async function POST(request: NextRequest) {
 
       const predictionResult = await client.query<{ id: number }>(
         `INSERT INTO predictions
-           (round_id, user_id, predicted_price, sats_amount, lightning_invoice)
-         VALUES ($1, $2, $3, $4, $5)
+           (round_id, user_id, predicted_low_price, predicted_high_price, predicted_price, sats_amount, lightning_invoice)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id`,
-        [roundId, userId, predicted_price, sats_amount, invoice.paymentRequest]
+        [
+          roundId,
+          userId,
+          predicted_low_price,
+          predicted_high_price,
+          predicted_price,
+          sats_amount,
+          invoice.paymentRequest,
+        ]
       );
 
       const predictionId = predictionResult.rows[0].id;

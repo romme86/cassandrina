@@ -16,6 +16,13 @@ jest.mock("@/lib/lnd", () => ({
   createLndInvoice: jest.fn(),
 }));
 
+jest.mock("@/lib/redis", () => ({
+  getRedis: jest.fn(() => ({
+    incr: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+  })),
+}));
+
 jest.mock("@cassandrina/shared", () => ({
   CreatePredictionSchema: {
     safeParse(input: any) {
@@ -25,8 +32,10 @@ jest.mock("@cassandrina/shared", () => ({
         input.platform.length === 0 ||
         typeof input.platform_user_id !== "string" ||
         input.platform_user_id.length === 0 ||
-        typeof input.predicted_price !== "number" ||
-        input.predicted_price <= 0 ||
+        typeof input.predicted_low_price !== "number" ||
+        input.predicted_low_price <= 0 ||
+        typeof input.predicted_high_price !== "number" ||
+        input.predicted_high_price < input.predicted_low_price ||
         typeof input.sats_amount !== "number" ||
         input.sats_amount <= 0
       ) {
@@ -62,10 +71,15 @@ beforeEach(() => {
   mockWithTransaction.mockReset();
   mockWithTransaction.mockImplementation(async (callback) => {
     const client = {
-      query: jest
-        .fn()
-        .mockResolvedValueOnce({ rows: [{ id: 99 }] })
-        .mockResolvedValueOnce({ rows: [] }),
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes("SELECT id FROM predictions")) {
+          return { rows: [] };
+        }
+        if (sql.includes("INSERT INTO predictions")) {
+          return { rows: [{ id: 99 }] };
+        }
+        return { rows: [] };
+      }),
     };
     return callback(client as never);
   });
@@ -82,7 +96,8 @@ describe("POST /api/predictions", () => {
     const req = makeRequest({
       platform: "telegram",
       platform_user_id: "12345",
-      predicted_price: -100,
+      predicted_low_price: -100,
+      predicted_high_price: 100,
       sats_amount: 500,
     });
     const res = await POST(req);
@@ -98,7 +113,8 @@ describe("POST /api/predictions", () => {
       platform: "telegram",
       platform_user_id: "2001",
       display_name: "alice",
-      predicted_price: 95000,
+      predicted_low_price: 94000,
+      predicted_high_price: 96000,
       sats_amount: 500,
     });
     const res = await POST(req);
@@ -124,7 +140,8 @@ describe("POST /api/predictions", () => {
       platform: "telegram",
       platform_user_id: "2002",
       display_name: "alice",
-      predicted_price: 95000,
+      predicted_low_price: 94000,
+      predicted_high_price: 96000,
       sats_amount: 500,
     });
     const res = await POST(req);
@@ -147,7 +164,8 @@ describe("POST /api/predictions", () => {
       platform: "telegram",
       platform_user_id: "2003",
       display_name: "alice",
-      predicted_price: 95000,
+      predicted_low_price: 94000,
+      predicted_high_price: 96000,
       sats_amount: 500,
     });
     const res = await POST(req);
@@ -160,14 +178,32 @@ describe("POST /api/predictions", () => {
   test("returns 409 for duplicate prediction in same round", async () => {
     mockQuery
       .mockResolvedValueOnce([{ id: 1 }])   // user
-      .mockResolvedValueOnce([{ id: 42 }])  // open round
-      .mockResolvedValueOnce([{ id: 10 }]); // existing prediction
+      .mockResolvedValueOnce([{ id: 42 }]); // open round
+
+    mockCreateInvoice.mockResolvedValueOnce({
+      paymentRequest: "lnbc500n1...",
+      rHashHex: "deadbeef",
+      expiresAt: "2026-03-20T10:00:00.000Z",
+    });
+
+    mockWithTransaction.mockImplementationOnce(async (callback) => {
+      const client = {
+        query: jest.fn().mockImplementation(async (sql: string) => {
+          if (sql.includes("SELECT id FROM predictions")) {
+            return { rows: [{ id: 10 }] };
+          }
+          return { rows: [] };
+        }),
+      };
+      return callback(client as never);
+    });
 
     const req = makeRequest({
       platform: "telegram",
       platform_user_id: "1001",
       display_name: "alice",
-      predicted_price: 95000,
+      predicted_low_price: 94000,
+      predicted_high_price: 96000,
       sats_amount: 500,
     });
     const res = await POST(req);

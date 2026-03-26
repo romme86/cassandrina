@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,14 @@ type Bot struct {
 	telegram        TelegramGateway
 	pendingMu       sync.Mutex
 	pendingInvoices map[int64]string
+}
+
+var wisePhrases = []string{
+	"The market humbles quickly, so stay humble first.",
+	"Patience is also a position.",
+	"Clarity grows when noise is allowed to pass.",
+	"Discipline beats excitement over a long enough horizon.",
+	"A calm mind sees more than a rushed one.",
 }
 
 func NewBot(cfg *Config) (*Bot, error) {
@@ -107,53 +116,13 @@ func (b *Bot) handleGroupMessage(ctx context.Context, msg *Message) {
 		return
 	}
 
-	pred, err := ParsePrediction(msg.Text, b.cfg.MinSats, b.cfg.MaxSats)
-	if err != nil {
-		return
-	}
-
-	senderID := strconv.FormatInt(msg.From.ID, 10)
-	displayName := telegramDisplayName(msg.From)
-
-	resp, err := b.api.CreatePrediction(PredictionRequest{
-		Platform:       "telegram",
-		PlatformUserID: senderID,
-		DisplayName:    displayName,
-		PredictedPrice: pred.PredictedPrice,
-		SatsAmount:     pred.SatsAmount,
-	})
-	if err != nil {
-		log.Printf("[bot] failed to create prediction for %s: %v", senderID, err)
-		reply := "Could not register your prediction. Please try again."
-		var apiErr *APIError
-		if errors.As(err, &apiErr) {
-			reply = apiErr.UserMessage()
-		}
+	if looksLikePredictionMessage(msg.Text) {
 		_ = b.telegram.SendMessage(
 			ctx,
 			msg.Chat.ID,
-			reply,
+			"Send your prediction to Cassandrina in a private chat. Use: <lowest BTC price> <highest BTC price> <sats>.",
 			msg.MessageID,
 		)
-		return
-	}
-
-	invoiceMessage := fmt.Sprintf(
-		"Your prediction is registered.\nPrice: $%.0f\nSats: %d\n\nPay this Lightning invoice to confirm:\n%s",
-		pred.PredictedPrice,
-		pred.SatsAmount,
-		resp.LightningInvoice,
-	)
-	if err := b.telegram.SendMessage(ctx, msg.From.ID, invoiceMessage, 0); err != nil {
-		log.Printf("[bot] failed to DM %s: %v", senderID, err)
-		b.storePendingInvoice(msg.From.ID, invoiceMessage)
-
-		startLink := b.telegram.DeepLink(ctx)
-		reply := "I couldn't DM your invoice yet. Start a private chat with this bot and send /start, then I'll deliver the pending invoice."
-		if startLink != "" {
-			reply = "I couldn't DM your invoice yet. Open " + startLink + " and send /start, then I'll deliver the pending invoice."
-		}
-		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, msg.MessageID)
 	}
 }
 
@@ -170,12 +139,90 @@ func (b *Bot) handlePrivateMessage(ctx context.Context, msg *Message) {
 		return
 	}
 
+	pred, err := ParsePrediction(msg.Text, b.cfg.MinSats, b.cfg.MaxSats)
+	if err == nil {
+		b.submitPrediction(ctx, msg, pred)
+		return
+	}
+
 	_ = b.telegram.SendMessage(
 		ctx,
 		msg.Chat.ID,
 		startMessage(b.isAdminUser(msg.From.ID)),
 		0,
 	)
+}
+
+func (b *Bot) submitPrediction(ctx context.Context, msg *Message, pred *Prediction) {
+	senderID := strconv.FormatInt(msg.From.ID, 10)
+	displayName := telegramDisplayName(msg.From)
+
+	resp, err := b.api.CreatePrediction(PredictionRequest{
+		Platform:           "telegram",
+		PlatformUserID:     senderID,
+		DisplayName:        displayName,
+		PredictedLowPrice:  pred.PredictedLowPrice,
+		PredictedHighPrice: pred.PredictedHighPrice,
+		SatsAmount:         pred.SatsAmount,
+	})
+	if err != nil {
+		log.Printf("[bot] failed to create prediction for %s: %v", senderID, err)
+		reply := "Could not register your prediction. Please try again."
+		var apiErr *APIError
+		if errors.As(err, &apiErr) {
+			reply = apiErr.UserMessage()
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
+		return
+	}
+
+	invoiceMessage := fmt.Sprintf(
+		"Your prediction is registered.\nLow by 19:00: $%.0f\nHigh by 19:00: $%.0f\nSats: %d\n\nPay this Lightning invoice to confirm:\n%s",
+		pred.PredictedLowPrice,
+		pred.PredictedHighPrice,
+		pred.SatsAmount,
+		resp.LightningInvoice,
+	)
+	if err := b.telegram.SendMessage(ctx, msg.From.ID, invoiceMessage, 0); err != nil {
+		log.Printf("[bot] failed to DM %s: %v", senderID, err)
+		b.storePendingInvoice(msg.From.ID, invoiceMessage)
+
+		startLink := b.telegram.DeepLink(ctx)
+		reply := "I couldn't DM your invoice yet. Start a private chat with this bot and send /start, then I'll deliver the pending invoice."
+		if startLink != "" {
+			reply = "I couldn't DM your invoice yet. Open " + startLink + " and send /start, then I'll deliver the pending invoice."
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
+	}
+}
+
+func (b *Bot) handleSettlementEvent(ctx context.Context, status string, payload map[string]interface{}) {
+	participants := asObjectSlice(payload["participants"])
+	_ = b.telegram.SendMessage(
+		ctx,
+		b.cfg.GroupChatID,
+		formatSettlementMessage(
+			status,
+			intOrDefault(asFloat(payload["pnl_sats"]), 0),
+			asFloat(payload["actual_low_price"]),
+			asFloat(payload["actual_high_price"]),
+			asFloat(payload["actual_price"]),
+			participants,
+			asObjectMap(payload["bot_summary"]),
+		),
+		0,
+	)
+
+	for _, participant := range participants {
+		if strings.TrimSpace(asString(participant["platform"])) != "telegram" {
+			continue
+		}
+		chatID, err := strconv.ParseInt(strings.TrimSpace(asString(participant["platform_user_id"])), 10, 64)
+		if err != nil {
+			continue
+		}
+		_ = b.telegram.SendMessage(ctx, chatID, formatParticipantSettlementDM(participant), 0)
+	}
 }
 
 func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
@@ -234,13 +281,13 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 			return true
 		}
 		reply := fmt.Sprintf(
-			"Started round #%d for %d minutes.\nTarget: %02d:00 %s on %s\nCloses at: %s UTC",
+			"Started round #%d for %d minutes.\nTarget: %02d:00 %s on %s\nCloses at: %s",
 			resp.RoundID,
 			resp.Minutes,
 			resp.TargetHour,
 			timeZoneLabel(resp.TargetTimeZone),
 			resp.QuestionDate,
-			formatUTC(resp.CloseAt),
+			formatLocalTime(resp.CloseAt),
 		)
 		if resp.ReplacedRoundID != nil {
 			reply = fmt.Sprintf("Replaced round #%d.\n\n%s", *resp.ReplacedRoundID, reply)
@@ -282,104 +329,43 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 		questionDate, _ := payload["question_date"].(string)
 		targetHour, _ := payload["target_hour"].(float64)
 		targetTimeZone, _ := payload["target_timezone"].(string)
+		closeAt, _ := payload["close_at"].(string)
 		minSats, _ := payload["min_sats"].(float64)
 		maxSats, _ := payload["max_sats"].(float64)
 		msg := formatPredictionOpenMessage(
 			questionDate,
 			int(targetHour),
 			targetTimeZone,
+			closeAt,
 			intOrDefault(minSats, b.cfg.MinSats),
 			intOrDefault(maxSats, b.cfg.MaxSats),
 		)
 		_ = b.telegram.SendMessage(ctx, b.cfg.GroupChatID, msg, 0)
 
 	case strings.HasSuffix(channel, "prediction:close"):
-		paidCount, _ := payload["paid_count"].(float64)
-		totalSats, _ := payload["total_sats"].(float64)
 		closeReason, _ := payload["close_reason"].(string)
 		_ = b.telegram.SendMessage(
 			ctx,
 			b.cfg.GroupChatID,
-			fmt.Sprintf(
-				"Prediction window closed\n\nPaid entries: %d\nTotal deployed: %d sats\nReason: %s",
-				int(paidCount),
-				int(totalSats),
+			formatPredictionCloseMessage(
 				closeReason,
+				asObjectSlice(payload["participants"]),
+				asObjectMap(payload["trade_summary"]),
 			),
 			0,
 		)
 
 	case strings.HasSuffix(channel, "trade:opened"):
-		strategy, _ := payload["strategy"].(string)
-		direction, _ := payload["direction"].(string)
-		entryPrice, _ := payload["entry_price"].(float64)
-		targetPrice, _ := payload["target_price"].(float64)
-		satsDeployed, _ := payload["sats_deployed"].(float64)
-		dryRun, _ := payload["dry_run"].(bool)
-		mode := "LIVE"
-		if dryRun {
-			mode = "DRY RUN"
-		}
-		_ = b.telegram.SendMessage(
-			ctx,
-			b.cfg.GroupChatID,
-			fmt.Sprintf(
-				"Trade opened (%s)\n\nStrategy: %s\nDirection: %s\nEntry: $%.2f\nTarget: $%.2f\nDeployed: %d sats",
-				mode,
-				strategy,
-				strings.ToUpper(direction),
-				entryPrice,
-				targetPrice,
-				int(satsDeployed),
-			),
-			0,
-		)
+		return
 
 	case strings.HasSuffix(channel, "trade:closed"):
-		pnlSats, _ := payload["pnl_sats"].(float64)
-		_ = b.telegram.SendMessage(
-			ctx,
-			b.cfg.GroupChatID,
-			fmt.Sprintf("Trade closed\n\nRound PnL: %+d sats", int(pnlSats)),
-			0,
-		)
+		b.handleSettlementEvent(ctx, "closed", payload)
 
 	case strings.HasSuffix(channel, "trade:liquidated"):
-		pnlSats, _ := payload["pnl_sats"].(float64)
-		_ = b.telegram.SendMessage(
-			ctx,
-			b.cfg.GroupChatID,
-			fmt.Sprintf(
-				"Liquidation alert\n\nThe position was liquidated.\nRound PnL: %+d sats",
-				int(pnlSats),
-			),
-			0,
-		)
+		b.handleSettlementEvent(ctx, "liquidated", payload)
 
 	case strings.HasSuffix(channel, "stats:8h"):
-		stats := &BalanceStatsResponse{}
-		if value, ok := payload["round_id"].(float64); ok {
-			stats.RoundID = int(value)
-		}
-		if value, ok := payload["question_date"].(string); ok {
-			stats.QuestionDate = value
-		}
-		if value, ok := payload["target_hour"].(float64); ok {
-			stats.TargetHour = int(value)
-		}
-		if value, ok := payload["participant_count"].(float64); ok {
-			stats.ParticipantCount = int(value)
-		}
-		if value, ok := payload["paid_count"].(float64); ok {
-			stats.PaidCount = int(value)
-		}
-		if value, ok := payload["total_sats"].(float64); ok {
-			stats.TotalSats = int(value)
-		}
-		if value, ok := payload["hours_to_target"].(float64); ok {
-			stats.HoursToTarget = int(value)
-		}
-		_ = b.telegram.SendMessage(ctx, b.cfg.GroupChatID, formatBalanceStatsMessage(stats), 0)
+		return
 
 	case strings.HasSuffix(channel, "weekly:vote"):
 		_ = b.telegram.SendMessage(
@@ -418,6 +404,32 @@ func intOrDefault(value float64, fallback int) int {
 	return int(value)
 }
 
+func asFloat(value interface{}) float64 {
+	parsed, _ := value.(float64)
+	return parsed
+}
+
+func asString(value interface{}) string {
+	parsed, _ := value.(string)
+	return parsed
+}
+
+func asObjectMap(value interface{}) map[string]interface{} {
+	parsed, _ := value.(map[string]interface{})
+	return parsed
+}
+
+func asObjectSlice(value interface{}) []map[string]interface{} {
+	raw, _ := value.([]interface{})
+	items := make([]map[string]interface{}, 0, len(raw))
+	for _, item := range raw {
+		if parsed, ok := item.(map[string]interface{}); ok {
+			items = append(items, parsed)
+		}
+	}
+	return items
+}
+
 func timeZoneLabel(value string) string {
 	if value == "" {
 		return "UTC"
@@ -445,6 +457,10 @@ func parseCommand(text string) (string, string, bool) {
 		args = strings.Join(parts[1:], " ")
 	}
 	return command, args, true
+}
+
+func looksLikePredictionMessage(text string) bool {
+	return len(strings.Fields(strings.TrimSpace(text))) == 3
 }
 
 func (b *Bot) isAdminUser(userID int64) bool {
@@ -495,7 +511,7 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Predictions are submitted in the group as '<price> <sats>'. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats\n/health\n/status"
+	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nIf you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats\n/health\n/status"
 	if !includeAdmin {
 		return text
 	}
@@ -503,7 +519,7 @@ func startMessage(includeAdmin bool) string {
 }
 
 func helpMessage(includeAdmin bool) string {
-	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the prediction window to open in the group.\n2. Submit your prediction in the group as: <price> <sats>\n3. The bot sends you a Lightning invoice in private.\n4. Pay the invoice before it expires.\n5. Only paid predictions count toward the round.\n6. Use /my_stats in private chat to see your stats and Telegram ID.\n\nUser commands:\n/help\n/my_stats\n/health\n/status\n/start"
+	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the reminder in the group.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Cassandrina replies with a Lightning invoice in private.\n4. Pay the invoice before the window closes.\n5. Only paid predictions count toward the round.\n6. At settlement the group gets the result summary and you get your balance update in private.\n\nUser commands:\n/help\n/my_stats\n/health\n/status\n/start"
 	if !includeAdmin {
 		return text
 	}
@@ -560,18 +576,135 @@ func formatStatusMessage(isAdmin bool, hasAdminAPI bool, isPrivateChat bool) str
 	)
 }
 
-func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone string, minSats int, maxSats int) string {
+func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone, closeAt string, minSats int, maxSats int) string {
 	dateLabel := "today"
 	if strings.TrimSpace(questionDate) != "" {
 		dateLabel = "on " + questionDate
 	}
+	closeLabel := closeAt
+	if strings.TrimSpace(closeAt) != "" {
+		closeLabel = formatLocalTime(closeAt)
+	}
 	return fmt.Sprintf(
-		"Daily BTC Prediction\n\nWhat will BTC's price be at %02d:00 %s %s?\n\nReply with: <price> <sats> (example: 95000 500)\nMin: %d sats | Max: %d sats",
+		"Prediction window is open\n\nCassandrina is collecting private BTC predictions for %02d:00 %s %s.\nWindow closes at: %s\n\nSend Cassandrina a private message in this format:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\nExample: 82000 84500 3000\n\nMin: %d sats | Max: %d sats",
 		targetHour,
 		timeZoneLabel(targetTimeZone),
 		dateLabel,
+		closeLabel,
 		minSats,
 		maxSats,
+	)
+}
+
+func formatPredictionCloseMessage(closeReason string, participants []map[string]interface{}, tradeSummary map[string]interface{}) string {
+	lines := []string{
+		"Prediction window is closed",
+		"",
+		fmt.Sprintf("Reason: %s", closeReason),
+		"",
+		"Confirmed predictions:",
+	}
+
+	if len(participants) == 0 {
+		lines = append(lines, "No paid predictions this round.")
+	} else {
+		for _, participant := range participants {
+			lines = append(
+				lines,
+				fmt.Sprintf(
+					"- %s: low $%.0f | high $%.0f | %d sats",
+					asString(participant["display_name"]),
+					asFloat(participant["predicted_low_price"]),
+					asFloat(participant["predicted_high_price"]),
+					intOrDefault(asFloat(participant["sats_amount"]), 0),
+				),
+			)
+		}
+	}
+
+	if len(tradeSummary) > 0 {
+		mode := "live"
+		if dryRun, ok := tradeSummary["dry_run"].(bool); ok && dryRun {
+			mode = "dry run"
+		}
+		lines = append(
+			lines,
+			"",
+			fmt.Sprintf(
+				"Cassandrina used $%.2f as the opening number and opened a %s position (%s).",
+				asFloat(tradeSummary["target_price"]),
+				strings.ToUpper(asString(tradeSummary["direction"])),
+				mode,
+			),
+			fmt.Sprintf(
+				"Consensus range: low $%.2f | high $%.2f",
+				asFloat(tradeSummary["target_low_price"]),
+				asFloat(tradeSummary["target_high_price"]),
+			),
+			fmt.Sprintf(
+				"Entry: $%.2f | Confidence: %.1f%% | Strategy: %s",
+				asFloat(tradeSummary["entry_price"]),
+				asFloat(tradeSummary["confidence_score"]),
+				asString(tradeSummary["strategy"]),
+			),
+		)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func formatSettlementMessage(
+	status string,
+	pnlSats int,
+	actualLowPrice, actualHighPrice, actualPrice float64,
+	participants []map[string]interface{},
+	botSummary map[string]interface{},
+) string {
+	title := "Trade closed"
+	if status == "liquidated" {
+		title = "Trade liquidated"
+	}
+	lines := []string{
+		title,
+		"",
+		fmt.Sprintf("Settlement price: $%.2f", actualPrice),
+		fmt.Sprintf("Real day range: low $%.2f | high $%.2f", actualLowPrice, actualHighPrice),
+		fmt.Sprintf("Round PnL: %s", formatSignedSats(pnlSats)),
+	}
+	if len(botSummary) > 0 {
+		lines = append(
+			lines,
+			fmt.Sprintf(
+				"Cassandrina range: low $%.2f | high $%.2f | avg error %.2f%%",
+				asFloat(botSummary["predicted_low_price"]),
+				asFloat(botSummary["predicted_high_price"]),
+				asFloat(botSummary["range_error_pct"]),
+			),
+		)
+	}
+	lines = append(lines, "", "Prediction closeness:")
+	for _, participant := range participants {
+		lines = append(
+			lines,
+			fmt.Sprintf(
+				"- %s: low $%.0f | high $%.0f | avg error %.2f%% | day PnL %s",
+				asString(participant["display_name"]),
+				asFloat(participant["predicted_low_price"]),
+				asFloat(participant["predicted_high_price"]),
+				asFloat(participant["range_error_pct"]),
+				formatSignedSats(intOrDefault(asFloat(participant["delta_sats"]), 0)),
+			),
+		)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatParticipantSettlementDM(participant map[string]interface{}) string {
+	return fmt.Sprintf(
+		"Round settled\n\nToday's PnL: %s\nCurrent balance: %s\n\n%s",
+		formatSignedSats(intOrDefault(asFloat(participant["delta_sats"]), 0)),
+		formatSats(intOrDefault(asFloat(participant["balance_sats"]), 0)),
+		randomWisePhrase(),
 	)
 }
 
@@ -650,6 +783,14 @@ func formatUTC(value string) string {
 	return parsed.UTC().Format("2006-01-02 15:04")
 }
 
+func formatLocalTime(value string) string {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return value
+	}
+	return parsed.Format("2006-01-02 15:04 MST")
+}
+
 func formatSats(value int) string {
 	return fmt.Sprintf("%s sats", formatInt(value))
 }
@@ -710,4 +851,12 @@ func telegramDisplayName(user *TelegramUser) string {
 	}
 
 	return "telegram-" + strconv.FormatInt(user.ID, 10)
+}
+
+func randomWisePhrase() string {
+	if len(wisePhrases) == 0 {
+		return "Stay steady."
+	}
+	source := rand.NewSource(time.Now().UnixNano())
+	return wisePhrases[rand.New(source).Intn(len(wisePhrases))]
 }

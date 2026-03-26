@@ -160,10 +160,33 @@ class PostgresRepository:
                 (actual_price, round_id),
             )
 
+    def settle_round_with_extremes(
+        self,
+        round_id: int,
+        *,
+        actual_price: float,
+        actual_low_price: float,
+        actual_high_price: float,
+    ) -> None:
+        with self._cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE prediction_rounds
+                SET status = 'settled',
+                    btc_actual_price = %s,
+                    btc_actual_low_price = %s,
+                    btc_actual_high_price = %s
+                WHERE id = %s
+                """,
+                (actual_price, actual_low_price, actual_high_price, round_id),
+            )
+
     def update_round_analysis(
         self,
         round_id: int,
         *,
+        btc_target_low_price: float,
+        btc_target_high_price: float,
         polymarket_probability: float,
         btc_target_price: float,
         confidence_score: float,
@@ -173,13 +196,17 @@ class PostgresRepository:
             cur.execute(
                 """
                 UPDATE prediction_rounds
-                SET polymarket_probability = %s,
+                SET btc_target_low_price = %s,
+                    btc_target_high_price = %s,
+                    polymarket_probability = %s,
                     btc_target_price = %s,
                     confidence_score = %s,
                     strategy_used = %s
                 WHERE id = %s
                 """,
                 (
+                    btc_target_low_price,
+                    btc_target_high_price,
                     polymarket_probability,
                     btc_target_price,
                     confidence_score,
@@ -276,10 +303,14 @@ class PostgresRepository:
                 """
                 SELECT p.id,
                        p.user_id,
+                       p.predicted_low_price,
+                       p.predicted_high_price,
                        p.predicted_price,
                        p.sats_amount,
                        p.created_at,
                        u.display_name,
+                       u.platform,
+                       u.platform_user_id,
                        u.accuracy,
                        u.congruency
                 FROM predictions p
@@ -290,6 +321,21 @@ class PostgresRepository:
                 (round_id,),
             )
             return [dict(row) for row in cur.fetchall()]
+
+    def get_user_balances(self, user_ids: list[int]) -> dict[int, int]:
+        if not user_ids:
+            return {}
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, COALESCE(SUM(delta_sats), 0)::int AS balance_sats
+                FROM balance_entries
+                WHERE user_id = ANY(%s)
+                GROUP BY user_id
+                """,
+                (user_ids,),
+            )
+            return {int(row["user_id"]): int(row["balance_sats"]) for row in cur.fetchall()}
 
     def update_user_scores(self, user_id: int, accuracy: float, congruency: float) -> None:
         with self._cursor(commit=True) as cur:

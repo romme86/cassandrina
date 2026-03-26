@@ -15,12 +15,13 @@ const adminSecretHeader = "x-cassandrina-admin-secret"
 
 // PredictionRequest is sent to POST /api/predictions.
 type PredictionRequest struct {
-	Platform       string  `json:"platform"`
-	PlatformUserID string  `json:"platform_user_id"`
-	DisplayName    string  `json:"display_name,omitempty"`
-	PredictedPrice float64 `json:"predicted_price"`
-	SatsAmount     int     `json:"sats_amount"`
-	RoundID        int     `json:"round_id,omitempty"`
+	Platform           string  `json:"platform"`
+	PlatformUserID     string  `json:"platform_user_id"`
+	DisplayName        string  `json:"display_name,omitempty"`
+	PredictedLowPrice  float64 `json:"predicted_low_price"`
+	PredictedHighPrice float64 `json:"predicted_high_price"`
+	SatsAmount         int     `json:"sats_amount"`
+	RoundID            int     `json:"round_id,omitempty"`
 }
 
 // PredictionResponse is returned by POST /api/predictions.

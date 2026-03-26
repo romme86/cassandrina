@@ -9,28 +9,37 @@ import (
 
 // Prediction represents a parsed prediction from a Telegram message.
 type Prediction struct {
-	PredictedPrice float64
-	SatsAmount     int
+	PredictedLowPrice  float64
+	PredictedHighPrice float64
+	SatsAmount         int
 }
 
-// ErrInvalidFormat is returned when the message does not match "<price> <sats>".
-var ErrInvalidFormat = errors.New("invalid prediction format: expected '<price> <sats>'")
+// ErrInvalidFormat is returned when the message does not match "<low> <high> <sats>".
+var ErrInvalidFormat = errors.New("invalid prediction format: expected '<low> <high> <sats>'")
 
 // ParsePrediction parses a Telegram message into a Prediction.
 func ParsePrediction(msg string, minSats, maxSats int) (*Prediction, error) {
 	parts := strings.Fields(strings.TrimSpace(msg))
-	if len(parts) != 2 {
+	if len(parts) != 3 {
 		return nil, ErrInvalidFormat
 	}
 
-	price, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil || price <= 0 {
-		return nil, fmt.Errorf("invalid price %q: must be a positive number", parts[0])
+	lowPrice, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil || lowPrice <= 0 {
+		return nil, fmt.Errorf("invalid low price %q: must be a positive number", parts[0])
 	}
 
-	sats, err := strconv.Atoi(parts[1])
+	highPrice, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil || highPrice <= 0 {
+		return nil, fmt.Errorf("invalid high price %q: must be a positive number", parts[1])
+	}
+	if highPrice < lowPrice {
+		return nil, fmt.Errorf("invalid range %q %q: high must be greater than or equal to low", parts[0], parts[1])
+	}
+
+	sats, err := strconv.Atoi(parts[2])
 	if err != nil || sats <= 0 {
-		return nil, fmt.Errorf("invalid sats %q: must be a positive integer", parts[1])
+		return nil, fmt.Errorf("invalid sats %q: must be a positive integer", parts[2])
 	}
 
 	if sats < minSats {
@@ -41,7 +50,8 @@ func ParsePrediction(msg string, minSats, maxSats int) (*Prediction, error) {
 	}
 
 	return &Prediction{
-		PredictedPrice: price,
-		SatsAmount:     sats,
+		PredictedLowPrice:  lowPrice,
+		PredictedHighPrice: highPrice,
+		SatsAmount:         sats,
 	}, nil
 }

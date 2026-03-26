@@ -19,7 +19,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
 from enum import Enum
 from zoneinfo import ZoneInfo
 
@@ -102,11 +102,21 @@ class PredictionScheduler:
 
         local_now = datetime.now(self._scheduler_tz)
         bot_config = self._safe_get_bot_config()
+        prediction_window_hours = self._get_runtime_config_int(
+            bot_config,
+            "prediction_window_hours",
+            self.config.prediction_window_hours,
+        )
+        prediction_target_hour = self._get_runtime_config_int(
+            bot_config,
+            "prediction_target_hour",
+            self.config.prediction_target_hour,
+        )
         open_at = local_now.astimezone(timezone.utc)
-        close_at = (local_now + timedelta(hours=self.config.prediction_window_hours)).astimezone(timezone.utc)
+        close_at = (local_now + timedelta(hours=prediction_window_hours)).astimezone(timezone.utc)
         round_data = self._db.create_round(
             date=local_now.date(),
-            target_hour=self.config.prediction_target_hour,
+            target_hour=prediction_target_hour,
             open_at=open_at,
             close_at=close_at,
         )
@@ -116,7 +126,7 @@ class PredictionScheduler:
             {
                 "round_id": round_id,
                 "question_date": str(round_data["question_date"]),
-                "target_hour": self.config.prediction_target_hour,
+                "target_hour": prediction_target_hour,
                 "target_timezone": self.config.scheduler_timezone,
                 "min_sats": int(bot_config.get("min_sats", 100)),
                 "max_sats": int(bot_config.get("max_sats", 5000)),
@@ -139,7 +149,9 @@ class PredictionScheduler:
             return False
 
         self._db.close_round(round_id)
+        participants = self._db.get_paid_predictions(round_id)
         total_sats = self._db.get_round_total_paid_sats(round_id)
+        trade_summary = self._execute_trade_for_round(round_id, participants=participants)
         self._publish(
             "prediction:close",
             {
@@ -147,9 +159,10 @@ class PredictionScheduler:
                 "paid_count": paid_count,
                 "total_sats": total_sats,
                 "close_reason": close_reason,
+                "participants": self._serialize_participant_predictions(participants),
+                "trade_summary": trade_summary,
             },
         )
-        self._execute_trade_for_round(round_id)
 
         if callable(self.on_trade_execute):
             self.on_trade_execute(round_id=round_id)
@@ -158,6 +171,7 @@ class PredictionScheduler:
 
     def send_8h_report(self, round_id: int) -> None:
         """Publish the 8-hour portfolio stats event."""
+        bot_config = self._safe_get_bot_config()
         participant_count = self._db.get_round_participant_count(round_id)
         paid_count = self._db.get_paid_predictions_count(round_id)
         total_sats = self._db.get_round_total_paid_sats(round_id)
@@ -165,7 +179,11 @@ class PredictionScheduler:
             "stats:8h",
             {
                 "round_id": round_id,
-                "hours_to_target": self.config.report_hours_before_target,
+                "hours_to_target": self._get_runtime_config_int(
+                    bot_config,
+                    "report_hours_before_target",
+                    self.config.report_hours_before_target,
+                ),
                 "participant_count": participant_count,
                 "paid_count": paid_count,
                 "total_sats": total_sats,
@@ -188,18 +206,44 @@ class PredictionScheduler:
         """Register APScheduler jobs and start the scheduler."""
         from apscheduler.schedulers.background import BackgroundScheduler
 
+        bot_config = self._safe_get_bot_config()
+        prediction_open_hour = self._get_runtime_config_int(
+            bot_config,
+            "prediction_open_hour",
+            self.config.prediction_open_hour,
+        )
+        prediction_target_hour = self._get_runtime_config_int(
+            bot_config,
+            "prediction_target_hour",
+            self.config.prediction_target_hour,
+        )
+        report_hours_before_target = self._get_runtime_config_int(
+            bot_config,
+            "report_hours_before_target",
+            self.config.report_hours_before_target,
+        )
+        weekly_vote_day = self._get_runtime_config_int(
+            bot_config,
+            "weekly_vote_day",
+            self.config.weekly_vote_day,
+        )
+        weekly_vote_hour = self._get_runtime_config_int(
+            bot_config,
+            "weekly_vote_hour",
+            self.config.weekly_vote_hour,
+        )
         self._scheduler = BackgroundScheduler(timezone=self._scheduler_tz)
 
         # Open prediction window daily
         self._scheduler.add_job(
             self._job_open_window,
             "cron",
-            hour=self.config.prediction_open_hour,
+            hour=prediction_open_hour,
             minute=0,
         )
 
         # 8h report daily
-        report_hour = self.config.prediction_target_hour - self.config.report_hours_before_target
+        report_hour = prediction_target_hour - report_hours_before_target
         self._scheduler.add_job(
             self._job_8h_report,
             "cron",
@@ -215,7 +259,7 @@ class PredictionScheduler:
         )
 
         # Position reconciliation — 1 hour before settlement
-        reconcile_hour = (self.config.prediction_target_hour - 1) % 24
+        reconcile_hour = (prediction_target_hour - 1) % 24
         self._scheduler.add_job(
             self._job_reconcile_positions,
             "cron",
@@ -226,12 +270,12 @@ class PredictionScheduler:
         self._scheduler.add_job(
             self._job_settle_round,
             "cron",
-            hour=self.config.prediction_target_hour,
+            hour=prediction_target_hour,
             minute=0,
         )
 
         # Fund reconciliation — daily, 2 hours before settlement
-        fund_reconcile_hour = (self.config.prediction_target_hour - 2) % 24
+        fund_reconcile_hour = (prediction_target_hour - 2) % 24
         self._scheduler.add_job(
             self._job_fund_reconciliation,
             "cron",
@@ -250,8 +294,8 @@ class PredictionScheduler:
         self._scheduler.add_job(
             self.send_weekly_vote,
             "cron",
-            day_of_week=self.config.weekly_vote_day,
-            hour=self.config.weekly_vote_hour,
+            day_of_week=weekly_vote_day,
+            hour=weekly_vote_hour,
             minute=0,
         )
 
@@ -413,7 +457,17 @@ class PredictionScheduler:
         if not rounds or not self._market_data:
             return
 
+        target_hour = self._get_runtime_config_int(
+            self._safe_get_bot_config(),
+            "prediction_target_hour",
+            self.config.prediction_target_hour,
+        )
+        target_time = datetime.combine(round_date, dt_time(hour=target_hour), tzinfo=self._scheduler_tz)
         actual_price = self._market_data.get_btc_price()
+        actual_low_price, actual_high_price = self._market_data.get_btc_day_range(
+            target_time=target_time,
+            time_zone=self.config.scheduler_timezone,
+        )
         bot_config = self._safe_get_bot_config()
         max_sats = int(bot_config.get("max_sats", 5000))
 
@@ -427,9 +481,14 @@ class PredictionScheduler:
 
             # Use a shared connection for the entire settlement of this round
             with self._db.connection():
-                self._db.settle_round(round_data["id"], actual_price)
-
                 participants = self._db.get_paid_predictions(round_data["id"])
+                target_low_price, target_high_price, target_price = self._compute_target_range(participants) if participants else (None, None, None)
+                self._db.settle_round_with_extremes(
+                    round_data["id"],
+                    actual_price=actual_price,
+                    actual_low_price=actual_low_price,
+                    actual_high_price=actual_high_price,
+                )
                 for participant in participants:
                     correct = is_prediction_correct(participant["predicted_price"], actual_price)
                     round_congruency = compute_congruency(participant["sats_amount"], max_sats)
@@ -462,6 +521,7 @@ class PredictionScheduler:
                         for user_id, delta_sats in distributions.items()
                     ]
                 )
+                balances = self._db.get_user_balances([int(p["user_id"]) for p in participants])
             self._publish(
                 f"trade:{status}",
                 {
@@ -469,6 +529,27 @@ class PredictionScheduler:
                     "trade_id": trade["id"],
                     "status": status,
                     "pnl_sats": pnl_sats,
+                    "actual_price": actual_price,
+                    "actual_low_price": actual_low_price,
+                    "actual_high_price": actual_high_price,
+                    "participants": self._build_settlement_participant_summaries(
+                        participants,
+                        actual_low_price=actual_low_price,
+                        actual_high_price=actual_high_price,
+                        balances=balances,
+                        distributions=distributions,
+                    ),
+                    "bot_summary": {
+                        "predicted_low_price": target_low_price,
+                        "predicted_high_price": target_high_price,
+                        "predicted_price": target_price,
+                        "range_error_pct": self._compute_range_error_pct(
+                            target_low_price,
+                            target_high_price,
+                            actual_low_price,
+                            actual_high_price,
+                        ),
+                    },
                 },
             )
 
@@ -486,6 +567,74 @@ class PredictionScheduler:
         except Exception:
             logger.exception("Failed to load bot config")
             return {}
+
+    @staticmethod
+    def _get_runtime_config_int(bot_config: dict[str, str], key: str, fallback: int) -> int:
+        value = bot_config.get(key)
+        if value is None:
+            return fallback
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    @staticmethod
+    def _serialize_participant_predictions(participants: list[dict]) -> list[dict]:
+        return [
+            {
+                "display_name": p.get("display_name", "Unknown"),
+                "predicted_low_price": float(p["predicted_low_price"]),
+                "predicted_high_price": float(p["predicted_high_price"]),
+                "predicted_price": float(p["predicted_price"]),
+                "sats_amount": int(p["sats_amount"]),
+            }
+            for p in participants
+        ]
+
+    @staticmethod
+    def _compute_range_error_pct(
+        predicted_low_price: float | None,
+        predicted_high_price: float | None,
+        actual_low_price: float,
+        actual_high_price: float,
+    ) -> float | None:
+        if predicted_low_price is None or predicted_high_price is None or actual_low_price <= 0 or actual_high_price <= 0:
+            return None
+        low_error = abs((actual_low_price - predicted_low_price) / actual_low_price) * 100.0
+        high_error = abs((actual_high_price - predicted_high_price) / actual_high_price) * 100.0
+        return (low_error + high_error) / 2.0
+
+    def _build_settlement_participant_summaries(
+        self,
+        participants: list[dict],
+        *,
+        actual_low_price: float,
+        actual_high_price: float,
+        balances: dict[int, int],
+        distributions: dict[int, int],
+    ) -> list[dict]:
+        summaries = []
+        for participant in participants:
+            user_id = int(participant["user_id"])
+            summaries.append(
+                {
+                    "display_name": participant.get("display_name", "Unknown"),
+                    "platform": participant.get("platform"),
+                    "platform_user_id": participant.get("platform_user_id"),
+                    "predicted_low_price": float(participant["predicted_low_price"]),
+                    "predicted_high_price": float(participant["predicted_high_price"]),
+                    "predicted_price": float(participant["predicted_price"]),
+                    "range_error_pct": self._compute_range_error_pct(
+                        float(participant["predicted_low_price"]),
+                        float(participant["predicted_high_price"]),
+                        actual_low_price,
+                        actual_high_price,
+                    ),
+                    "delta_sats": int(distributions.get(user_id, 0)),
+                    "balance_sats": int(balances.get(user_id, 0)),
+                }
+            )
+        return summaries
 
     def _verify_round_payments(self, round_id: int) -> None:
         if not self._lnd:
@@ -525,19 +674,26 @@ class PredictionScheduler:
         except Exception:
             logger.exception("Failed to close exchange position for trade %s", trade["id"])
 
-    def _execute_trade_for_round(self, round_id: int) -> None:
+    def _execute_trade_for_round(self, round_id: int, *, participants: list[dict] | None = None) -> dict | None:
         existing_trade = self._db.get_open_trade_for_round(round_id)
         if existing_trade:
-            return
+            return {
+                "trade_id": existing_trade["id"],
+                "strategy": existing_trade["strategy"],
+                "direction": existing_trade["direction"],
+                "entry_price": float(existing_trade["entry_price"]),
+                "target_price": float(existing_trade["target_price"]),
+                "sats_deployed": int(existing_trade["sats_deployed"]),
+            }
 
-        participants = self._db.get_paid_predictions(round_id)
+        participants = participants or self._db.get_paid_predictions(round_id)
         if not participants or not self._market_data:
-            return
+            return None
 
         bot_config = self._safe_get_bot_config()
         max_sats = int(bot_config.get("max_sats", 5000))
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
-        target_price = self._compute_target_price(participants)
+        target_low_price, target_high_price, target_price = self._compute_target_range(participants)
         polymarket_probability = 0.5
         if self._polymarket:
             try:
@@ -570,6 +726,8 @@ class PredictionScheduler:
         sats_deployed = sum(int(p["sats_amount"]) for p in participants)
         self._db.update_round_analysis(
             round_id,
+            btc_target_low_price=target_low_price,
+            btc_target_high_price=target_high_price,
             polymarket_probability=polymarket_probability,
             btc_target_price=target_price,
             confidence_score=confidence_score,
@@ -608,21 +766,44 @@ class PredictionScheduler:
                 "strategy": strategy.value,
                 "direction": direction,
                 "entry_price": current_price,
+                "target_low_price": target_low_price,
+                "target_high_price": target_high_price,
                 "target_price": target_price,
+                "confidence_score": confidence_score,
                 "sats_deployed": sats_deployed,
                 "dry_run": not trading_enabled,
             },
         )
+        return {
+            "trade_id": trade["id"],
+            "strategy": strategy.value,
+            "direction": direction,
+            "entry_price": current_price,
+            "target_low_price": target_low_price,
+            "target_high_price": target_high_price,
+            "target_price": target_price,
+            "confidence_score": confidence_score,
+            "sats_deployed": sats_deployed,
+            "dry_run": not trading_enabled,
+        }
 
     @staticmethod
-    def _compute_target_price(participants: list[dict]) -> float:
+    def _compute_target_range(participants: list[dict]) -> tuple[float, float, float]:
         total_sats = sum(int(p["sats_amount"]) for p in participants)
         if total_sats <= 0:
-            return float(participants[0]["predicted_price"])
-        weighted_total = sum(
+            low = float(participants[0]["predicted_low_price"])
+            high = float(participants[0]["predicted_high_price"])
+            return low, high, float(participants[0]["predicted_price"])
+        weighted_low = sum(
+            float(p["predicted_low_price"]) * int(p["sats_amount"]) for p in participants
+        )
+        weighted_high = sum(
+            float(p["predicted_high_price"]) * int(p["sats_amount"]) for p in participants
+        )
+        weighted_mid = sum(
             float(p["predicted_price"]) * int(p["sats_amount"]) for p in participants
         )
-        return weighted_total / total_sats
+        return weighted_low / total_sats, weighted_high / total_sats, weighted_mid / total_sats
 
     def _compute_trade_outcome_with_exchange(self, trade: dict, actual_price: float) -> tuple[int, str]:
         """Try to get actual PnL from Binance, fall back to theoretical."""

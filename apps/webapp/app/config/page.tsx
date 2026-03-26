@@ -25,9 +25,9 @@ interface BotConfig {
 }
 
 const DEFAULTS: BotConfig = {
-  prediction_target_hour: "16",
+  prediction_target_hour: "19",
   prediction_open_hour: "8",
-  prediction_window_hours: "6",
+  prediction_window_hours: "11",
   min_sats: "1000",
   max_sats: "10000",
   weekly_vote_day: "6",
@@ -38,9 +38,9 @@ const DEFAULTS: BotConfig = {
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const FIELD_TOOLTIPS: Record<string, string> = {
-  prediction_open_hour: "UTC hour (0–23) when the daily prediction window opens. Users can submit predictions from this hour.",
-  prediction_target_hour: "UTC hour at which the BTC price is evaluated. Predictions are compared against the price at this hour.",
-  prediction_window_hours: "How many hours the prediction window stays open. After this window closes, no more predictions are accepted.",
+  prediction_open_hour: "Scheduler-local hour (0–23) when the daily prediction window opens.",
+  prediction_target_hour: "Scheduler-local hour at which the BTC trade is settled and the day range is evaluated.",
+  prediction_window_hours: "How many hours the prediction window stays open before Cassandrina closes submissions.",
   min_sats: "Minimum satoshi amount required for a valid prediction. Below this, predictions are rejected.",
   max_sats: "Maximum satoshi amount allowed per prediction. Also used as the denominator for congruency scoring.",
   weekly_vote_day: "Day of the week when the weekly vote is triggered (e.g., for reinvestment decisions).",
@@ -196,10 +196,10 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
       <ConfigSection title="Prediction Timing" icon={Clock}>
         <div className="grid md:grid-cols-2 gap-4">
           <TooltipField
-            label="Open Hour (UTC)"
+            label="Open Hour"
             name="prediction_open_hour"
             tooltip={FIELD_TOOLTIPS.prediction_open_hour}
-            currentValue={`${current.prediction_open_hour}:00 UTC`}
+            currentValue={`${current.prediction_open_hour}:00 local`}
           >
             <Input
               id="prediction_open_hour"
@@ -214,10 +214,10 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
           </TooltipField>
 
           <TooltipField
-            label="Target Hour (UTC)"
+            label="Target Hour"
             name="prediction_target_hour"
             tooltip={FIELD_TOOLTIPS.prediction_target_hour}
-            currentValue={`${current.prediction_target_hour}:00 UTC`}
+            currentValue={`${current.prediction_target_hour}:00 local`}
           >
             <Input
               id="prediction_target_hour"
@@ -313,10 +313,10 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
           </TooltipField>
 
           <TooltipField
-            label="Vote Hour (UTC)"
+            label="Vote Hour"
             name="weekly_vote_hour"
             tooltip={FIELD_TOOLTIPS.weekly_vote_hour}
-            currentValue={`${current.weekly_vote_hour}:00 UTC`}
+            currentValue={`${current.weekly_vote_hour}:00 local`}
           >
             <Input
               id="weekly_vote_hour"

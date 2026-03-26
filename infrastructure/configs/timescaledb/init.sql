@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS prediction_rounds (
     close_at                TIMESTAMPTZ,
     polymarket_probability  FLOAT CHECK (polymarket_probability BETWEEN 0 AND 1),
     status                  TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'settled')),
+    btc_target_low_price    FLOAT,
+    btc_target_high_price   FLOAT,
     btc_target_price        FLOAT,
+    btc_actual_low_price    FLOAT,
+    btc_actual_high_price   FLOAT,
     btc_actual_price        FLOAT,
     confidence_score        FLOAT,
     strategy_used           CHAR(1) CHECK (strategy_used IN ('A', 'B', 'C', 'D', 'E'))
@@ -43,6 +47,8 @@ CREATE TABLE IF NOT EXISTS predictions (
     id                  BIGSERIAL,
     round_id            INT NOT NULL REFERENCES prediction_rounds(id) ON DELETE CASCADE,
     user_id             INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    predicted_low_price FLOAT NOT NULL CHECK (predicted_low_price > 0),
+    predicted_high_price FLOAT NOT NULL CHECK (predicted_high_price >= predicted_low_price),
     predicted_price     FLOAT NOT NULL CHECK (predicted_price > 0),
     sats_amount         INT NOT NULL CHECK (sats_amount > 0),
     lightning_invoice   TEXT,
@@ -126,9 +132,9 @@ CREATE TABLE IF NOT EXISTS bot_config (
 
 -- Default configuration values
 INSERT INTO bot_config (key, value) VALUES
-    ('prediction_target_hour', '16'),
+    ('prediction_target_hour', '19'),
     ('prediction_open_hour', '8'),
-    ('prediction_window_hours', '6'),
+    ('prediction_window_hours', '11'),
     ('min_sats', '1000'),
     ('max_sats', '10000'),
     ('weekly_vote_day', '6'),
