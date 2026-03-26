@@ -42,7 +42,7 @@ Then check:
 systemctl status cassandrina --no-pager
 systemctl status bitcoind --no-pager
 systemctl status lnd --no-pager
-docker compose -f infrastructure/docker-compose.yml ps
+docker compose --env-file .env -f infrastructure/docker-compose.yml ps
 journalctl -u cassandrina -b --no-pager
 ```
 
@@ -60,6 +60,6 @@ You should see the Cassandrina containers in `Up` state:
   Cassandrina containers, so Docker will also try to recover them on daemon
   restart.
 - This setup does not rebuild images on every boot. After code changes, deploy
-  them once with `docker compose -f infrastructure/docker-compose.yml up -d --build`.
+  them once with `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build`.
 - If LND runs on another host, leave `bitcoind` and `lnd` managed there and
   make sure `.env` points `LND_HOST` to the correct machine.

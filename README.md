@@ -489,7 +489,7 @@ Then fill in at least:
 ### Production-style Docker run
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up --build -d
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build -d
 ```
 
 This starts:
@@ -522,7 +522,7 @@ sudo ./infrastructure/systemd/install-cassandrina-service.sh
 
 ```bash
 systemctl status cassandrina --no-pager
-docker compose -f infrastructure/docker-compose.yml ps
+docker compose --env-file .env -f infrastructure/docker-compose.yml ps
 ```
 
 The installer script creates `/etc/systemd/system/cassandrina.service`,

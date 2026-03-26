@@ -51,8 +51,8 @@ ConditionPathExists=${compose_file}
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${repo_root}
-ExecStart=${docker_bin} compose --project-directory ${repo_root} -f ${compose_file} up -d
-ExecStop=${docker_bin} compose --project-directory ${repo_root} -f ${compose_file} stop
+ExecStart=${docker_bin} compose --project-directory ${repo_root} --env-file ${repo_root}/.env -f ${compose_file} up -d
+ExecStop=${docker_bin} compose --project-directory ${repo_root} --env-file ${repo_root}/.env -f ${compose_file} stop
 TimeoutStartSec=0
 
 [Install]
