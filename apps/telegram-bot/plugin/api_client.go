@@ -71,6 +71,10 @@ type MyStatsResponse struct {
 	TotalPredictions int     `json:"total_predictions"`
 }
 
+type HealthResponse struct {
+	Status string `json:"status"`
+}
+
 type apiErrorResponse struct {
 	Error string `json:"error"`
 }
@@ -190,6 +194,20 @@ func (c *WebappClient) GetMyStats(platform, platformUserID string) (*MyStatsResp
 	}
 
 	var result MyStatsResponse
+	if err := c.doJSON(request, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (c *WebappClient) GetHealth() (*HealthResponse, error) {
+	request, err := c.newJSONRequest(http.MethodGet, "/api/health", nil, false)
+	if err != nil {
+		return nil, err
+	}
+
+	var result HealthResponse
 	if err := c.doJSON(request, &result); err != nil {
 		return nil, err
 	}

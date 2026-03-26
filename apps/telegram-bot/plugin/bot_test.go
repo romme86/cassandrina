@@ -34,6 +34,10 @@ func (f *fakeTelegramGateway) DeepLink(context.Context) string {
 	return f.deepLinkURL
 }
 
+func (f *fakeTelegramGateway) SyncCommands(context.Context) error {
+	return nil
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -190,6 +194,12 @@ func TestHelpCommandShowsUserInstructions(t *testing.T) {
 	if !contains(gateway.messages[0].text, "/my_stats") {
 		t.Fatalf("expected my_stats command in help, got %q", gateway.messages[0].text)
 	}
+	if !contains(gateway.messages[0].text, "/health") {
+		t.Fatalf("expected health command in help, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "/status") {
+		t.Fatalf("expected status command in help, got %q", gateway.messages[0].text)
+	}
 	if contains(gateway.messages[0].text, "/start_prediction <minutes>") {
 		t.Fatalf("did not expect admin commands for non-admin, got %q", gateway.messages[0].text)
 	}
@@ -216,6 +226,69 @@ func TestHelpCommandShowsAdminCommandsForAdmin(t *testing.T) {
 	}
 	if !contains(gateway.messages[0].text, "/start_prediction <minutes>") {
 		t.Fatalf("expected admin commands in help, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestHealthCommandUsesConfiguredWebappPath(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test/cassandrina")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/cassandrina/api/health" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"status":"ok"}`)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/health",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "user"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 health reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Webapp: ok") {
+		t.Fatalf("expected health reply to include webapp status, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestStatusCommandShowsAdminRole(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             &WebappClient{adminSecret: "test-secret"},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/status",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 status reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Role: admin") {
+		t.Fatalf("expected admin role in status reply, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Admin API: configured") {
+		t.Fatalf("expected admin API status in reply, got %q", gateway.messages[0].text)
 	}
 }
 

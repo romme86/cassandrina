@@ -1,0 +1,6 @@
+./api_client.go
+./bot.go
+./config.go
+./parser.go
+./redis_subscriber.go
+./telegram_client.go

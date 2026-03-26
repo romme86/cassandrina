@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Noto_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,16 +7,6 @@ import { query } from "@/lib/db";
 const metadataBase = process.env.WEBAPP_EXTERNAL_URL
   ? new URL(process.env.WEBAPP_EXTERNAL_URL)
   : undefined;
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-});
-
-const notoSans = Noto_Sans({
-  subsets: ["latin"],
-  variable: "--font-noto-sans",
-});
 
 export const metadata: Metadata = {
   title: "Cassandrina — Bitcoin Trading Bot",
@@ -44,10 +33,7 @@ export default async function RootLayout({
   const tradingEnabled = await getTradingEnabled();
 
   return (
-    <html
-      lang="en"
-      className={`dark ${spaceGrotesk.variable} ${notoSans.variable}`}
-    >
+    <html lang="en" className="dark">
       <body className="min-h-screen bg-background text-foreground font-[family-name:var(--font-noto-sans)] antialiased overflow-hidden">
         <TooltipProvider>
           <Sidebar tradingEnabled={tradingEnabled} />

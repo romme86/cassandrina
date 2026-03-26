@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -28,7 +29,6 @@ func LoadConfig() (*Config, error) {
 
 	cfg := &Config{
 		RedisURL:          getEnvOrDefault("REDIS_URL", "redis://redis:6379/0"),
-		WebappAPIURL:      getEnvOrDefault("WEBAPP_API_URL", "http://webapp:3000"),
 		InternalAPISecret: os.Getenv("INTERNAL_API_SECRET"),
 		BotToken:          os.Getenv("TELEGRAM_BOT_TOKEN"),
 		GroupChatID:       groupChatID,
@@ -49,6 +49,14 @@ func LoadConfig() (*Config, error) {
 	cfg.AdminUserIDs, err = getEnvInt64Set("TELEGRAM_ADMIN_USER_IDS")
 	if err != nil {
 		return nil, fmt.Errorf("TELEGRAM_ADMIN_USER_IDS: %w", err)
+	}
+
+	cfg.WebappAPIURL, err = normalizeWebappAPIURL(
+		getEnvOrDefault("WEBAPP_API_URL", "http://webapp:3000"),
+		os.Getenv("WEBAPP_BASE_PATH"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("WEBAPP_API_URL: %w", err)
 	}
 
 	return cfg, nil
@@ -97,4 +105,34 @@ func getEnvInt64Set(key string) (map[int64]struct{}, error) {
 	}
 
 	return values, nil
+}
+
+func normalizeWebappAPIURL(rawURL, basePath string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("must include scheme and host")
+	}
+
+	normalizedBasePath := normalizeBasePath(basePath)
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	if normalizedBasePath != "" && (parsed.Path == "" || parsed.Path == "/") {
+		parsed.Path = normalizedBasePath
+	}
+
+	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func normalizeBasePath(basePath string) string {
+	trimmed := strings.TrimSpace(basePath)
+	if trimmed == "" || trimmed == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+	return strings.TrimRight(trimmed, "/")
 }

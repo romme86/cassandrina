@@ -25,9 +25,17 @@ function getLocalParts(date: Date, timeZone: string) {
   };
 }
 
-function hoursUntilTarget(questionDate: string, targetHour: number, timeZone: string): number {
+function normalizeQuestionDate(questionDate: string | Date): string {
+  if (questionDate instanceof Date) {
+    return questionDate.toISOString().slice(0, 10);
+  }
+  return questionDate;
+}
+
+function hoursUntilTarget(questionDate: string | Date, targetHour: number, timeZone: string): number {
   const nowLocal = getLocalParts(new Date(), timeZone);
-  const [targetYear, targetMonth, targetDay] = questionDate.split("-").map(Number);
+  const normalizedQuestionDate = normalizeQuestionDate(questionDate);
+  const [targetYear, targetMonth, targetDay] = normalizedQuestionDate.split("-").map(Number);
   const nowDate = Date.UTC(nowLocal.year, nowLocal.month - 1, nowLocal.day);
   const targetDateUtc = Date.UTC(targetYear, targetMonth - 1, targetDay);
   const diffDays = Math.round((targetDateUtc - nowDate) / 86_400_000);
@@ -41,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   const roundRows = await query<{
     id: number;
-    question_date: string;
+    question_date: string | Date;
     target_hour: number;
   }>(
     `SELECT id, question_date, target_hour
@@ -81,7 +89,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     round_id: round.id,
-    question_date: round.question_date,
+    question_date: normalizeQuestionDate(round.question_date),
     target_hour: round.target_hour,
     hours_to_target: hoursUntilTarget(round.question_date, round.target_hour, timeZone),
     participant_count: stats.participant_count ?? 0,

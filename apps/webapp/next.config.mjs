@@ -6,7 +6,6 @@ const normalizedBasePath =
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   transpilePackages: ["@cassandrina/shared"],
   basePath: normalizedBasePath || undefined,
 };

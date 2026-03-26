@@ -43,6 +43,10 @@ func NewBotWithGateway(cfg *Config, telegram TelegramGateway) (*Bot, error) {
 }
 
 func (b *Bot) Run(ctx context.Context) error {
+	if err := b.telegram.SyncCommands(ctx); err != nil {
+		log.Printf("[telegram] setMyCommands failed: %v", err)
+	}
+
 	errCh := make(chan error, 2)
 
 	go func() {
@@ -186,6 +190,22 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 		return true
 	case "/help":
 		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, helpMessage(b.isAdminUser(msg.From.ID)), replyIDForChat(msg))
+		return true
+	case "/health":
+		health, err := b.api.GetHealth()
+		if err != nil {
+			_ = b.telegram.SendMessage(ctx, msg.Chat.ID, formatHealthErrorMessage(err), replyIDForChat(msg))
+			return true
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, formatHealthMessage(health, b.api.HasAdminSecret()), replyIDForChat(msg))
+		return true
+	case "/status":
+		_ = b.telegram.SendMessage(
+			ctx,
+			msg.Chat.ID,
+			formatStatusMessage(b.isAdminUser(msg.From.ID), b.api.HasAdminSecret(), msg.Chat.Type == "private"),
+			replyIDForChat(msg),
+		)
 		return true
 	case "/my_stats":
 		if !b.api.HasAdminSecret() {
@@ -475,7 +495,7 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Predictions are submitted in the group as '<price> <sats>'. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats"
+	text := "Predictions are submitted in the group as '<price> <sats>'. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats\n/health\n/status"
 	if !includeAdmin {
 		return text
 	}
@@ -483,11 +503,61 @@ func startMessage(includeAdmin bool) string {
 }
 
 func helpMessage(includeAdmin bool) string {
-	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the prediction window to open in the group.\n2. Submit your prediction in the group as: <price> <sats>\n3. The bot sends you a Lightning invoice in private.\n4. Pay the invoice before it expires.\n5. Only paid predictions count toward the round.\n6. Use /my_stats in private chat to see your stats and Telegram ID.\n\nUser commands:\n/help\n/my_stats\n/start"
+	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the prediction window to open in the group.\n2. Submit your prediction in the group as: <price> <sats>\n3. The bot sends you a Lightning invoice in private.\n4. Pay the invoice before it expires.\n5. Only paid predictions count toward the round.\n6. Use /my_stats in private chat to see your stats and Telegram ID.\n\nUser commands:\n/help\n/my_stats\n/health\n/status\n/start"
 	if !includeAdmin {
 		return text
 	}
 	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats"
+}
+
+func formatHealthMessage(health *HealthResponse, hasAdminAPI bool) string {
+	status := "unknown"
+	if health != nil && strings.TrimSpace(health.Status) != "" {
+		status = health.Status
+	}
+
+	adminStatus := "not configured"
+	if hasAdminAPI {
+		adminStatus = "configured"
+	}
+
+	return fmt.Sprintf(
+		"Cassandrina health\n\nBot: ok\nWebapp: %s\nAdmin API: %s",
+		status,
+		adminStatus,
+	)
+}
+
+func formatHealthErrorMessage(err error) string {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode > 0 {
+		return fmt.Sprintf("Cassandrina health check failed\n\nWebapp returned HTTP %d.", apiErr.StatusCode)
+	}
+	return "Cassandrina health check failed\n\nThe bot could not reach the webapp."
+}
+
+func formatStatusMessage(isAdmin bool, hasAdminAPI bool, isPrivateChat bool) string {
+	role := "user"
+	if isAdmin {
+		role = "admin"
+	}
+
+	adminAPI := "not configured"
+	if hasAdminAPI {
+		adminAPI = "configured"
+	}
+
+	chatType := "group"
+	if isPrivateChat {
+		chatType = "private"
+	}
+
+	return fmt.Sprintf(
+		"Cassandrina status\n\nBot: running\nRole: %s\nChat: %s\nAdmin API: %s",
+		role,
+		chatType,
+		adminAPI,
+	)
 }
 
 func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone string, minSats int, maxSats int) string {

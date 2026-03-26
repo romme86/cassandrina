@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    --font-space-grotesk: "Avenir Next", "Segoe UI", sans-serif;
+    --font-noto-sans: "Avenir Next", "Segoe UI", sans-serif;
+
     --background: 144 30% 6%;
     --foreground: 210 40% 95%;
 

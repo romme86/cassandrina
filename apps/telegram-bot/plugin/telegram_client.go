@@ -15,6 +15,7 @@ type TelegramGateway interface {
 	GetUpdates(ctx context.Context, offset int, timeoutSeconds int) ([]Update, error)
 	SendMessage(ctx context.Context, chatID int64, text string, replyToMessageID int) error
 	DeepLink(ctx context.Context) string
+	SyncCommands(ctx context.Context) error
 }
 
 type TelegramClient struct {
@@ -55,6 +56,11 @@ type telegramAPIResponse[T any] struct {
 	OK          bool   `json:"ok"`
 	Description string `json:"description"`
 	Result      T      `json:"result"`
+}
+
+type TelegramCommand struct {
+	Command     string `json:"command"`
+	Description string `json:"description"`
 }
 
 func NewTelegramClient(botToken string) *TelegramClient {
@@ -131,6 +137,37 @@ func (c *TelegramClient) DeepLink(ctx context.Context) string {
 	return "https://t.me/" + c.botUsername
 }
 
+func (c *TelegramClient) SyncCommands(ctx context.Context) error {
+	payload := map[string]any{
+		"commands": []TelegramCommand{
+			{Command: "start", Description: "Start a private chat with Cassandrina"},
+			{Command: "help", Description: "Show bot usage and commands"},
+			{Command: "my_stats", Description: "Show your Telegram-linked stats"},
+			{Command: "health", Description: "Check webapp health from the bot"},
+			{Command: "status", Description: "Show bot status and role info"},
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/setMyCommands",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	var response telegramAPIResponse[bool]
+	return c.do(req, &response)
+}
+
 func (c *TelegramClient) getMe(ctx context.Context) (*TelegramUser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/getMe", nil)
 	if err != nil {
@@ -169,6 +206,10 @@ func (c *TelegramClient) do(req *http.Request, target interface{}) error {
 			return fmt.Errorf("telegram api error: %s", typed.Description)
 		}
 	case *telegramAPIResponse[TelegramUser]:
+		if !typed.OK {
+			return fmt.Errorf("telegram api error: %s", typed.Description)
+		}
+	case *telegramAPIResponse[bool]:
 		if !typed.OK {
 			return fmt.Errorf("telegram api error: %s", typed.Description)
 		}
