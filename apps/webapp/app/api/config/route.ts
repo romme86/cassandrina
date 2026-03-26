@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { isAdminRequest } from "@/lib/admin";
 import { BotConfigSchema } from "@cassandrina/shared";
 
@@ -40,12 +40,14 @@ export async function POST(request: NextRequest) {
     ([, v]) => v !== undefined
   );
 
-  for (const [key, value] of updates) {
-    await query(
-      "UPDATE bot_config SET value = $1, updated_at = NOW() WHERE key = $2",
-      [String(value), key]
-    );
-  }
+  await withTransaction(async (client) => {
+    for (const [key, value] of updates) {
+      await client.query(
+        "UPDATE bot_config SET value = $1, updated_at = NOW() WHERE key = $2",
+        [String(value), key]
+      );
+    }
+  });
 
   return NextResponse.json({ updated: updates.map(([k]) => k) });
 }

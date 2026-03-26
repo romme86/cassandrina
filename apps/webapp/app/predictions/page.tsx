@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StrategyBadge } from "@/components/strategy-badge";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { withBasePath } from "@/lib/base-path";
 import { LineChart } from "lucide-react";
 
 export const revalidate = 30;
@@ -96,7 +97,9 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
           key={r.id}
           className="cursor-pointer hover:bg-secondary/50 border-border/30"
           onClick={() => {
-            if (typeof window !== "undefined") window.location.href = `/predictions/${r.id}`;
+            if (typeof window !== "undefined") {
+              window.location.href = withBasePath(`/predictions/${r.id}`);
+            }
           }}
         >
           <TableCell className="font-mono text-xs text-muted-foreground">

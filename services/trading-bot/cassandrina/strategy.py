@@ -42,6 +42,15 @@ TAKE_PROFIT_PCT: dict[Strategy, float] = {
     Strategy.E: 2.0,
 }
 
+# Stop-loss percentage per strategy (0.0 = no stop-loss)
+STOP_LOSS_PCT: dict[Strategy, float] = {
+    Strategy.A: 2.5,   # tight SL at 30x — liquidation would be at ~3.3%
+    Strategy.B: 4.0,   # at 20x — liquidation would be at ~5%
+    Strategy.C: 0.0,   # grid manages its own exits
+    Strategy.D: 5.0,
+    Strategy.E: 3.0,
+}
+
 # Grid distance fraction for Strategy C
 _GRID_DISTANCE_FRACTION: float = 0.20
 

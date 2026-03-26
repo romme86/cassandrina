@@ -31,3 +31,14 @@ export const BotConfigSchema = z.object({
 });
 
 export type BotConfigInput = z.infer<typeof BotConfigSchema>;
+
+// ── API: POST /api/wallet/withdraw ──────────────────────────
+
+export const WithdrawSchema = z.object({
+  platform: z.string().min(1),
+  platform_user_id: z.string().min(1),
+  payment_request: z.string().min(1),
+  amount_sats: z.number().int().min(1),
+});
+
+export type WithdrawInput = z.infer<typeof WithdrawSchema>;

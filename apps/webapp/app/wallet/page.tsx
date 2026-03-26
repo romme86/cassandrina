@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { withBasePath } from "@/lib/base-path";
 import { Wallet, Zap, Coins, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 interface LndBalance {
@@ -112,7 +113,7 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/wallet")
+    fetch(withBasePath("/api/wallet"))
       .then((r) => r.json())
       .then((data) => {
         setBalance(data.balance ?? null);

@@ -129,13 +129,44 @@ INSERT INTO bot_config (key, value) VALUES
     ('prediction_target_hour', '16'),
     ('prediction_open_hour', '8'),
     ('prediction_window_hours', '6'),
-    ('min_sats', '100'),
-    ('max_sats', '5000'),
+    ('min_sats', '1000'),
+    ('max_sats', '10000'),
     ('weekly_vote_day', '6'),
     ('weekly_vote_hour', '20'),
     ('report_hours_before_target', '8'),
     ('trading_enabled', 'true')
 ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================
+-- Strategy votes (weekly)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS strategy_votes (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    week_start  DATE NOT NULL,
+    strategy    CHAR(1) NOT NULL CHECK (strategy IN ('A', 'B', 'C', 'D', 'E')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, week_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_strategy_votes_week ON strategy_votes(week_start);
+
+-- ============================================================
+-- Legacy constraint cleanup
+-- ============================================================
+-- Drop the old one-round-per-day unique constraint if it exists,
+-- allowing manual override rounds on the same question_date.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'prediction_rounds_question_date_key'
+  ) THEN
+    ALTER TABLE prediction_rounds
+      DROP CONSTRAINT prediction_rounds_question_date_key;
+  END IF;
+END $$;
 
 -- ============================================================
 -- Indexes

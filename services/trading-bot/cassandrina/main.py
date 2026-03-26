@@ -22,9 +22,26 @@ from cassandrina.repository import PostgresRepository
 from cassandrina.scheduler import PredictionScheduler, SchedulerConfig
 from cassandrina.trade_executor import TradeExecutor
 
+import json as _json_mod
+
+class _JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[1]:
+            entry["error"] = str(record.exc_info[1])
+            entry["traceback"] = self.formatException(record.exc_info)
+        return _json_mod.dumps(entry)
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(_JsonFormatter())
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[_handler],
 )
 logger = logging.getLogger(__name__)
 
@@ -68,6 +85,14 @@ def main() -> None:
     def handle_shutdown(sig, frame):
         logger.info("Shutting down scheduler...")
         scheduler.stop()
+        try:
+            redis_client.close()
+        except Exception:
+            logger.exception("Error closing Redis connection")
+        try:
+            db.close()
+        except Exception:
+            logger.exception("Error closing database pool")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_shutdown)

@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PinGate } from "@/components/pin-gate";
+import { withBasePath } from "@/lib/base-path";
 import { Info, Settings, Clock, Coins, Calendar, Zap } from "lucide-react";
 
 interface BotConfig {
@@ -26,8 +27,8 @@ const DEFAULTS: BotConfig = {
   prediction_target_hour: "16",
   prediction_open_hour: "8",
   prediction_window_hours: "6",
-  min_sats: "100",
-  max_sats: "5000",
+  min_sats: "1000",
+  max_sats: "10000",
   weekly_vote_day: "6",
   weekly_vote_hour: "20",
   trading_enabled: "false",
@@ -147,7 +148,7 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
     });
 
     try {
-      const res = await fetch("/api/config", {
+      const res = await fetch(withBasePath("/api/config"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -155,7 +156,7 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
 
       if (res.ok) {
         setMessage({ type: "success", text: "Configuration saved!" });
-        const updated = await fetch("/api/config").then((r) => r.json());
+        const updated = await fetch(withBasePath("/api/config")).then((r) => r.json());
         setCurrent(updated);
         onSaved(updated);
       } else {
@@ -364,7 +365,7 @@ export default function ConfigPage() {
   }, []);
 
   const loadConfig = async () => {
-    const res = await fetch("/api/config");
+    const res = await fetch(withBasePath("/api/config"));
     if (res.status === 401) {
       sessionStorage.removeItem("cassandrina_admin");
       setUnlocked(false);

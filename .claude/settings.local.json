@@ -10,7 +10,13 @@
       "Bash(docker compose:*)",
       "Bash(docker volume:*)",
       "Bash(npx tsc:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(find /Users/saynode/Documents/GitHub/cassandrina/apps/webapp/app/api -type f -name \"route.ts\" | xargs basename -a | sort)",
+      "Bash(wc -l /Users/saynode/Documents/GitHub/cassandrina/services/trading-bot/cassandrina/*.py 2>/dev/null | tail -1)",
+      "Bash(pnpm --filter webapp exec tsc --noEmit 2>&1 | head -40)",
+      "Bash(pnpm --filter webapp exec tsc --noEmit 2>&1 | grep -v '__tests__' | grep -v 'node_modules' | head -20)",
+      "Bash(pnpm --filter webapp exec tsc --noEmit 2>&1 | grep 'error TS' | grep -v '__tests__' | grep -v 'node_modules')",
+      "Bash(cd /Users/saynode/Documents/GitHub/cassandrina && pnpm --filter webapp add node-pg-migrate 2>&1 | tail -5)"
     ]
   }
 }

@@ -20,6 +20,11 @@ FROM deps AS builder
 COPY apps/webapp/ ./apps/webapp/
 COPY packages/shared/ ./packages/shared/
 
+ARG NEXT_PUBLIC_BASE_PATH=
+ARG WEBAPP_EXTERNAL_URL=http://localhost:3000
+ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
+ENV WEBAPP_EXTERNAL_URL=${WEBAPP_EXTERNAL_URL}
+
 WORKDIR /repo/apps/webapp
 RUN pnpm build
 
@@ -28,7 +33,11 @@ FROM deps AS runner
 
 WORKDIR /repo/apps/webapp
 
+ARG NEXT_PUBLIC_BASE_PATH=
+ARG WEBAPP_EXTERNAL_URL=http://localhost:3000
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
+ENV WEBAPP_EXTERNAL_URL=${WEBAPP_EXTERNAL_URL}
 
 COPY --from=builder /repo/apps/webapp/.next ./.next
 COPY --from=builder /repo/apps/webapp/next.config.mjs ./next.config.mjs

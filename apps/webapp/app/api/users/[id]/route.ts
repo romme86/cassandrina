@@ -3,6 +3,12 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+function isPredictionCorrect(predicted: number, actual: number): boolean {
+  if (actual === 0) return false;
+  const errorPct = Math.abs(predicted - actual) / actual;
+  return errorPct <= 0.02; // within 2%
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -46,9 +52,37 @@ export async function GET(
      JOIN prediction_rounds r ON r.id = p.round_id
      WHERE p.user_id = $1
      ORDER BY p.created_at DESC
-     LIMIT 30`,
+     LIMIT 50`,
     [id]
   );
 
-  return NextResponse.json({ user: userRows[0], predictions });
+  const enriched = predictions.map((p) => {
+    const correct =
+      p.btc_actual_price != null
+        ? isPredictionCorrect(p.predicted_price, p.btc_actual_price)
+        : null;
+    const errorPct =
+      p.btc_actual_price != null && p.btc_actual_price > 0
+        ? Math.abs(p.predicted_price - p.btc_actual_price) / p.btc_actual_price
+        : null;
+    return { ...p, correct, error_pct: errorPct };
+  });
+
+  const settled = enriched.filter((p) => p.correct !== null);
+  const hits = settled.filter((p) => p.correct).length;
+  const balanceRows = await query<{ balance: string }>(
+    "SELECT COALESCE(SUM(delta_sats), 0) AS balance FROM balance_entries WHERE user_id = $1",
+    [id]
+  );
+
+  const stats = {
+    total_predictions: enriched.length,
+    settled_predictions: settled.length,
+    hits,
+    misses: settled.length - hits,
+    hit_rate: settled.length > 0 ? hits / settled.length : 0,
+    balance_sats: parseInt(balanceRows[0].balance, 10),
+  };
+
+  return NextResponse.json({ user: userRows[0], predictions: enriched, stats });
 }

@@ -6,6 +6,7 @@ dist/
 .next/
 out/
 build/
+CLAUDE.md
 
 # Python
 __pycache__/
@@ -29,6 +30,7 @@ htmlcov/
 # Go
 apps/whatsapp-bot/whatsapp-bot
 apps/whatsapp-bot/*.exe
+apps/telegram-bot/.cache/
 
 # Docker
 *.log

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { withBasePath } from "@/lib/base-path";
 import { Lock } from "lucide-react";
 
 interface PinGateProps {
@@ -21,7 +22,7 @@ export function PinGate({ onUnlock }: PinGateProps) {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/pin", {
+      const res = await fetch(withBasePath("/api/auth/pin"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),

@@ -7,19 +7,54 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 import os
+import threading
 from typing import Iterator
 
-from psycopg2.pool import SimpleConnectionPool
+from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import RealDictCursor
 
 
 class PostgresRepository:
     def __init__(self, database_url: str | None = None):
         dsn = database_url or os.environ["DATABASE_URL"]
-        self._pool = SimpleConnectionPool(1, 5, dsn=dsn)
+        self._pool = ThreadedConnectionPool(1, 5, dsn=dsn)
+        self._local = threading.local()
+
+    def close(self) -> None:
+        """Close all connections in the pool."""
+        self._pool.closeall()
+
+    @contextmanager
+    def connection(self) -> Iterator[None]:
+        """Acquire a single connection shared by all methods called within.
+
+        Commits on clean exit, rolls back on exception. Nested calls are
+        no-ops — only the outermost ``connection()`` manages the lifecycle.
+        """
+        existing = getattr(self._local, "conn", None)
+        if existing is not None:
+            yield
+            return
+        conn = self._pool.getconn()
+        self._local.conn = conn
+        try:
+            yield
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._local.conn = None
+            self._pool.putconn(conn)
 
     @contextmanager
     def _cursor(self, commit: bool = False) -> Iterator[RealDictCursor]:
+        shared = getattr(self._local, "conn", None)
+        if shared is not None:
+            with shared.cursor(cursor_factory=RealDictCursor) as cur:
+                yield cur
+            # commit/rollback handled by the connection() manager
+            return
         conn = self._pool.getconn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -54,7 +89,7 @@ class PostgresRepository:
                 """
                 INSERT INTO prediction_rounds (question_date, target_hour, open_at, close_at, status)
                 VALUES (%s, %s, %s, %s, 'open')
-                RETURNING *
+                RETURNING id, question_date, target_hour, open_at, close_at, status
                 """,
                 (date, target_hour, open_at, close_at),
             )
@@ -189,6 +224,8 @@ class PostgresRepository:
     def mark_invoice_paid(self, invoice_id: int, paid_at: datetime | None = None) -> None:
         paid_at = paid_at or datetime.now(timezone.utc)
         with self._cursor(commit=True) as cur:
+            # Advisory lock prevents concurrent mark_invoice_paid for the same invoice
+            cur.execute("SELECT pg_advisory_xact_lock(2147483647, %s)", (invoice_id,))
             cur.execute(
                 """
                 UPDATE lightning_invoices
@@ -268,7 +305,7 @@ class PostgresRepository:
                 INSERT INTO trades
                     (round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, binance_order_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING *
+                RETURNING id, round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, status, binance_order_id, opened_at
                 """,
                 (
                     round_id,
@@ -312,20 +349,97 @@ class PostgresRepository:
                 (status, pnl_sats, closed_at, trade_id),
             )
 
+    def record_strategy_vote(self, user_id: int, week_start: date, strategy: str) -> None:
+        with self._cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO strategy_votes (user_id, week_start, strategy)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, week_start) DO UPDATE SET strategy = EXCLUDED.strategy
+                """,
+                (user_id, week_start, strategy),
+            )
+
+    def get_weekly_vote_results(self, week_start: date) -> dict[str, int]:
+        """Returns {strategy: vote_count} for the given week."""
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT strategy, COUNT(*)::int AS votes
+                FROM strategy_votes
+                WHERE week_start = %s
+                GROUP BY strategy
+                ORDER BY votes DESC
+                """,
+                (week_start,),
+            )
+            return {row["strategy"]: row["votes"] for row in cur.fetchall()}
+
+    def get_winning_vote_strategy(self, week_start: date) -> str | None:
+        """Returns the most-voted strategy for the week, or None if no votes."""
+        results = self.get_weekly_vote_results(week_start)
+        if not results:
+            return None
+        return max(results, key=results.get)
+
+    def get_total_user_balances(self) -> int:
+        """Sum of all balance entries across all users (net sats in the system)."""
+        with self._cursor() as cur:
+            cur.execute("SELECT COALESCE(SUM(delta_sats), 0) AS total FROM balance_entries")
+            return int(cur.fetchone()["total"])
+
+    def get_total_deposited_sats(self) -> int:
+        """Sum of all paid prediction amounts (total sats deposited via Lightning)."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(SUM(sats_amount), 0) AS total FROM predictions WHERE paid = TRUE"
+            )
+            return int(cur.fetchone()["total"])
+
+    def cleanup_expired_invoices(self) -> int:
+        """Delete expired unpaid invoices and their associated unpaid predictions.
+
+        Returns the number of cleaned-up predictions.
+        """
+        with self._cursor(commit=True) as cur:
+            cur.execute(
+                """
+                DELETE FROM lightning_invoices
+                WHERE paid = FALSE AND expires_at < NOW()
+                RETURNING prediction_id
+                """
+            )
+            expired_rows = cur.fetchall()
+            if not expired_rows:
+                return 0
+            prediction_ids = [row["prediction_id"] for row in expired_rows]
+            cur.execute(
+                """
+                DELETE FROM predictions
+                WHERE id = ANY(%s) AND paid = FALSE
+                """,
+                (prediction_ids,),
+            )
+            return len(prediction_ids)
+
     def add_balance_entries(self, entries: list[dict]) -> None:
         if not entries:
             return
         with self._cursor(commit=True) as cur:
+            values = []
+            params: list = []
             for entry in entries:
-                cur.execute(
-                    """
-                    INSERT INTO balance_entries (user_id, round_id, delta_sats, reason)
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    (
-                        entry["user_id"],
-                        entry.get("round_id"),
-                        entry["delta_sats"],
-                        entry["reason"],
-                    ),
-                )
+                values.append("(%s, %s, %s, %s)")
+                params.extend([
+                    entry["user_id"],
+                    entry.get("round_id"),
+                    entry["delta_sats"],
+                    entry["reason"],
+                ])
+            cur.execute(
+                f"""
+                INSERT INTO balance_entries (user_id, round_id, delta_sats, reason)
+                VALUES {', '.join(values)}
+                """,
+                params,
+            )

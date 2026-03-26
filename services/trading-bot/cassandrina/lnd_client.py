@@ -13,8 +13,15 @@ Required env vars:
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+from typing import Iterator
+
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 class LNDError(Exception):
@@ -100,6 +107,54 @@ class LNDClient:
             "settled": bool(data.get("settled", False)),
             "amount_sats": int(data.get("amt_paid_sat", 0)),
         }
+
+    def subscribe_invoices(self, settle_index: int = 0) -> Iterator[dict]:
+        """Stream settled invoices via LND's SubscribeInvoices REST endpoint.
+
+        Yields dicts with keys: r_hash_hex, settled, amount_sats.
+        Blocks until a new invoice event arrives. Caller should run in a thread.
+        Reconnects are the caller's responsibility.
+        """
+        url = f"{self.base_url}/v1/invoices/subscribe"
+        params = {}
+        if settle_index > 0:
+            params["settle_index"] = settle_index
+        try:
+            response = self._session.get(url, params=params, stream=True, timeout=None)
+        except requests.RequestException as exc:
+            raise LNDError(f"SubscribeInvoices connection failed: {exc}") from exc
+        if not response.ok:
+            raise LNDError(f"SubscribeInvoices → HTTP {response.status_code}: {response.text}")
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("Skipping non-JSON line from SubscribeInvoices: %s", line[:200])
+                continue
+            # LND wraps the invoice in a "result" key
+            invoice = data.get("result", data)
+            settled = invoice.get("settled", False) or invoice.get("state") == "SETTLED"
+            if not settled:
+                continue
+            r_hash = invoice.get("r_hash", "")
+            # r_hash may be base64 from REST — convert to hex
+            if r_hash:
+                import base64
+                try:
+                    r_hash_bytes = base64.b64decode(r_hash)
+                    r_hash_hex = r_hash_bytes.hex()
+                except Exception:
+                    r_hash_hex = r_hash
+            else:
+                r_hash_hex = ""
+            yield {
+                "r_hash_hex": r_hash_hex,
+                "settled": True,
+                "amount_sats": int(invoice.get("amt_paid_sat", 0)),
+                "settle_index": int(invoice.get("settle_index", 0)),
+            }
 
     def get_channel_balance(self) -> dict:
         """

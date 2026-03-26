@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 NEUTRAL_PROBABILITY: float = 0.5
 _BASE_URL = "https://clob.polymarket.com"
 _BTC_KEYWORDS = ("bitcoin", "btc")
+_PRICE_KEYWORDS = ("price", "above", "below", "reach", "hit", "over", "under", "$")
 
 
 class PolymarketClient:
@@ -56,16 +57,37 @@ class PolymarketClient:
         return resp.json().get("data", [])
 
     def _find_best_market(self, markets: list[dict], target_date: date) -> dict | None:
-        """Return the first active BTC market whose question mentions the date or BTC."""
-        date_str = target_date.strftime("%B %-d")   # e.g. "March 1"
+        """Find the best matching active BTC price market, scored by relevance.
+
+        Scoring: BTC keyword match (required), price keyword (+2), date match (+3),
+        month match (+1). Returns highest-scoring market or None.
+        """
+        date_str_full = target_date.strftime("%B %-d")  # e.g. "March 1"
+        date_str_month = target_date.strftime("%B").lower()
+        date_str_year = str(target_date.year)
+
+        candidates: list[tuple[int, dict]] = []
         for market in markets:
             question = market.get("question", "").lower()
             if not any(kw in question for kw in _BTC_KEYWORDS):
                 continue
             if not market.get("active", False):
                 continue
-            return market
-        return None
+            score = 1
+            if any(kw in question for kw in _PRICE_KEYWORDS):
+                score += 2
+            if date_str_full.lower() in question:
+                score += 3
+            elif date_str_month in question and date_str_year in question:
+                score += 2
+            elif date_str_month in question:
+                score += 1
+            candidates.append((score, market))
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
 
     @staticmethod
     def _extract_yes_probability(market: dict) -> float:

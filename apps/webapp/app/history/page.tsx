@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
 import { StrategyBadge } from "@/components/strategy-badge";
+import { withBasePath } from "@/lib/base-path";
 import { History, TrendingUp, TrendingDown, Activity, BarChart2 } from "lucide-react";
 
 interface TradeHistoryRow {
@@ -100,7 +101,7 @@ export default function HistoryPage() {
     if (strategy) params.set("strategy", strategy);
     if (outcome) params.set("outcome", outcome);
     try {
-      const res = await fetch(`/api/history?${params}`);
+      const res = await fetch(withBasePath(`/api/history?${params.toString()}`));
       if (res.ok) {
         const data = await res.json();
         setTrades(data.trades ?? []);

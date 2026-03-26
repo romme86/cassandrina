@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, withTransaction } from "@/lib/db";
 import { createLndInvoice } from "@/lib/lnd";
+import { getRedis } from "@/lib/redis";
 import { CreatePredictionSchema } from "@cassandrina/shared";
 
 export const dynamic = "force-dynamic";
 
-// Rate limiting: max 3 prediction attempts per user identity per 10 minutes
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(identity: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(identity);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(identity, { count: 1, resetAt: now + 10 * 60 * 1000 });
-    return true;
+class DuplicatePredictionError extends Error {
+  constructor() {
+    super("Duplicate prediction");
   }
-  if (entry.count >= 3) return false;
-  entry.count++;
-  return true;
+}
+
+const RATE_LIMIT_MAX = 3;
+const RATE_LIMIT_WINDOW_SECONDS = 600; // 10 minutes
+
+async function checkRateLimit(identity: string): Promise<boolean> {
+  const redis = getRedis();
+  const key = `cassandrina:ratelimit:prediction:${identity}`;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, RATE_LIMIT_WINDOW_SECONDS);
+  }
+  return count <= RATE_LIMIT_MAX;
 }
 
 function defaultDisplayName(platform: string, platformUserId: string): string {
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
   const { platform, platform_user_id, display_name, predicted_price, sats_amount } = parsed.data;
   const identityKey = `${platform}:${platform_user_id}`;
 
-  if (!checkRateLimit(identityKey)) {
+  if (!(await checkRateLimit(identityKey))) {
     return NextResponse.json(
       { error: "Too many prediction attempts. Wait a few minutes." },
       { status: 429 }
@@ -86,18 +90,6 @@ export async function POST(request: NextRequest) {
   }
   const roundId = roundRows[0].id;
 
-  // Check for existing prediction in this round
-  const existing = await query(
-    "SELECT id FROM predictions WHERE round_id = $1 AND user_id = $2",
-    [roundId, userId]
-  );
-  if (existing.length > 0) {
-    return NextResponse.json(
-      { error: "You already submitted a prediction for this round" },
-      { status: 409 }
-    );
-  }
-
   const memo = `Cassandrina prediction - round ${roundId}`;
 
   let invoice;
@@ -111,34 +103,56 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Store prediction and invoice metadata atomically
-  const prediction = await withTransaction(async (client) => {
-    const predictionResult = await client.query<{ id: number }>(
-      `INSERT INTO predictions
-         (round_id, user_id, predicted_price, sats_amount, lightning_invoice)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [roundId, userId, predicted_price, sats_amount, invoice.paymentRequest]
-    );
+  // Use advisory lock + duplicate check inside transaction to prevent races
+  let prediction: { id: number };
+  try {
+    prediction = await withTransaction(async (client) => {
+      // Advisory lock scoped to (roundId, userId) — prevents concurrent inserts
+      await client.query("SELECT pg_advisory_xact_lock($1, $2)", [roundId, userId]);
 
-    const predictionId = predictionResult.rows[0].id;
+      const existing = await client.query(
+        "SELECT id FROM predictions WHERE round_id = $1 AND user_id = $2",
+        [roundId, userId]
+      );
+      if (existing.rows.length > 0) {
+        throw new DuplicatePredictionError();
+      }
 
-    await client.query(
-      `INSERT INTO lightning_invoices
-         (prediction_id, payment_hash, invoice, memo, amount_sats, expires_at)
-       VALUES ($1, decode($2, 'hex'), $3, $4, $5, $6)`,
-      [
-        predictionId,
-        invoice.rHashHex,
-        invoice.paymentRequest,
-        memo,
-        sats_amount,
-        invoice.expiresAt,
-      ]
-    );
+      const predictionResult = await client.query<{ id: number }>(
+        `INSERT INTO predictions
+           (round_id, user_id, predicted_price, sats_amount, lightning_invoice)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [roundId, userId, predicted_price, sats_amount, invoice.paymentRequest]
+      );
 
-    return { id: predictionId };
-  });
+      const predictionId = predictionResult.rows[0].id;
+
+      await client.query(
+        `INSERT INTO lightning_invoices
+           (prediction_id, payment_hash, invoice, memo, amount_sats, expires_at)
+         VALUES ($1, decode($2, 'hex'), $3, $4, $5, $6)`,
+        [
+          predictionId,
+          invoice.rHashHex,
+          invoice.paymentRequest,
+          memo,
+          sats_amount,
+          invoice.expiresAt,
+        ]
+      );
+
+      return { id: predictionId };
+    });
+  } catch (error) {
+    if (error instanceof DuplicatePredictionError) {
+      return NextResponse.json(
+        { error: "You already submitted a prediction for this round" },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   return NextResponse.json(
     {

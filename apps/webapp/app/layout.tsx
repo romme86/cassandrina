@@ -5,6 +5,10 @@ import { Sidebar } from "@/components/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { query } from "@/lib/db";
 
+const metadataBase = process.env.WEBAPP_EXTERNAL_URL
+  ? new URL(process.env.WEBAPP_EXTERNAL_URL)
+  : undefined;
+
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space-grotesk",
@@ -18,6 +22,7 @@ const notoSans = Noto_Sans({
 export const metadata: Metadata = {
   title: "Cassandrina — Bitcoin Trading Bot",
   description: "Gamified Bitcoin trading bot dashboard",
+  metadataBase,
 };
 
 async function getTradingEnabled(): Promise<boolean> {
@@ -46,7 +51,7 @@ export default async function RootLayout({
       <body className="min-h-screen bg-background text-foreground font-[family-name:var(--font-noto-sans)] antialiased overflow-hidden">
         <TooltipProvider>
           <Sidebar tradingEnabled={tradingEnabled} />
-          <main className="ml-64 h-screen overflow-y-auto p-6 lg:p-10">
+          <main className="lg:ml-64 h-screen overflow-y-auto p-6 pt-16 lg:pt-10 lg:p-10">
             <div className="mx-auto w-full max-w-[1320px]">{children}</div>
           </main>
         </TooltipProvider>

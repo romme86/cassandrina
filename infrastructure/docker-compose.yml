@@ -51,11 +51,17 @@ services:
     build:
       context: ..
       dockerfile: apps/webapp/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${WEBAPP_BASE_PATH:-}
+        WEBAPP_EXTERNAL_URL: ${WEBAPP_EXTERNAL_URL:-http://localhost:3000}
     restart: unless-stopped
     env_file: ../.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cassandrina}:${POSTGRES_PASSWORD}@timescaledb:5432/${POSTGRES_DB:-cassandrina}
       REDIS_URL: redis://redis:6379/0
+      NEXT_PUBLIC_BASE_PATH: ${WEBAPP_BASE_PATH:-}
+      WEBAPP_EXTERNAL_URL: ${WEBAPP_EXTERNAL_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${WEBAPP_EXTERNAL_URL:-http://localhost:3000}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -63,10 +69,53 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000${WEBAPP_BASE_PATH:-}/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
           memory: 512M
+
+  rtl:
+    image: shahanafarooqui/rtl:0.15.1-arm64v8
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      RTL_PASSWORD: ${RTL_PASSWORD}
+      RTL_NODE_LABEL: ${RTL_NODE_LABEL:-Cassandrina LND}
+      RTL_PORT: 3000
+      RTL_LND_REST_HOST: ${RTL_LND_REST_HOST:-}
+      RTL_LND_REST_PORT: ${RTL_LND_REST_PORT:-${LND_PORT:-8080}}
+    volumes:
+      - rtl_data:/data
+      - ./configs/rtl/entrypoint.sh:/entrypoint.sh:ro
+      - ${RTL_LND_MAINNET_PATH:-/home/cassandrina/.lnd/data/chain/bitcoin/mainnet}:/lnd/mainnet:ro
+      - ${RTL_LND_CONF_PATH:-/home/cassandrina/.lnd/lnd.conf}:/lnd/lnd.conf:ro
+      - ${RTL_BITCOIND_CONF_PATH:-/mnt/bitcoin-ssd/umbrel/app-data/bitcoin/data/bitcoin/umbrel-bitcoin.conf}:/bitcoin/bitcoind.conf:ro
+    command: ["/bin/sh", "/entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:${NGINX_LOCAL_PORT:-8081}:80"
+    depends_on:
+      webapp:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
   # ── Trading Bot (Python) ───────────────────────────────────
   trading-bot:
@@ -102,7 +151,7 @@ services:
       redis:
         condition: service_healthy
       webapp:
-        condition: service_started
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -110,3 +159,4 @@ services:
 
 volumes:
   timescaledb_data:
+  rtl_data:

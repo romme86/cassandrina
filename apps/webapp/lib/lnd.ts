@@ -25,10 +25,10 @@ function getLndTlsOptions(): Pick<https.RequestOptions, "ca" | "rejectUnauthoriz
     };
   }
 
-  // Cassandrina commonly talks to a self-signed LND endpoint on the local node.
-  // Keep that working by default unless verification is explicitly forced on.
+  // Without an explicit cert path, default to verifying TLS.
+  // Set LND_TLS_SKIP_VERIFY=true to disable (e.g. self-signed local node).
   return {
-    rejectUnauthorized: process.env.LND_TLS_SKIP_VERIFY === "false",
+    rejectUnauthorized: process.env.LND_TLS_SKIP_VERIFY !== "true",
   };
 }
 
@@ -67,6 +67,49 @@ async function postJson(urlString: string, body: string, headers: Record<string,
     req.write(body);
     req.end();
   });
+}
+
+export interface PaymentResult {
+  paymentHash: string;
+  feeSats: number;
+}
+
+export async function payLndInvoice(paymentRequest: string): Promise<PaymentResult> {
+  const host = process.env.LND_HOST;
+  const port = process.env.LND_PORT ?? "8080";
+  const macaroon = process.env.LND_MACAROON_HEX;
+
+  if (!host || !macaroon) {
+    throw new Error("LND_HOST and LND_MACAROON_HEX must be set");
+  }
+
+  const url = `https://${host}:${port}/v1/channels/transactions`;
+  const body = JSON.stringify({ payment_request: paymentRequest });
+
+  const res = await postJson(url, body, {
+    "Content-Type": "application/json",
+    "Grpc-Metadata-Macaroon": macaroon,
+  });
+
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`LND payment failed: HTTP ${res.status} — ${res.body}`);
+  }
+
+  const data = JSON.parse(res.body) as {
+    payment_hash: string;
+    payment_error: string;
+    payment_route?: { total_fees_msat?: string };
+  };
+
+  if (data.payment_error) {
+    throw new Error(`LND payment error: ${data.payment_error}`);
+  }
+
+  const feeMsat = parseInt(data.payment_route?.total_fees_msat ?? "0", 10);
+  return {
+    paymentHash: data.payment_hash,
+    feeSats: Math.ceil(feeMsat / 1000),
+  };
 }
 
 export async function createLndInvoice(
