@@ -511,7 +511,7 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nIf you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/help\n/my_stats\n/health\n/status"
+	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nCassandrina will reply here with your Lightning invoice. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status"
 	if !includeAdmin {
 		return text
 	}
@@ -519,7 +519,7 @@ func startMessage(includeAdmin bool) string {
 }
 
 func helpMessage(includeAdmin bool) string {
-	text := "Cassandrina bot help\n\nHow it works:\n1. Wait for the reminder in the group.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Cassandrina replies with a Lightning invoice in private.\n4. Pay the invoice before the window closes.\n5. Only paid predictions count toward the round.\n6. At settlement the group gets the result summary and you get your balance update in private.\n\nUser commands:\n/help\n/my_stats\n/health\n/status\n/start"
+	text := "Cassandrina bot help\n\nHow it works:\n1. At 08:00 CET Cassandrina posts in the group that the prediction window is open.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Example: 82000 84500 3000\n4. Cassandrina replies with a Lightning invoice in private.\n5. Pay the invoice before the window closes.\n6. When the window closes, the group gets the confirmed predictions plus the market position summary.\n7. At 19:00 CET Cassandrina settles the position, posts the result in the group, and sends each participant a private balance update.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status"
 	if !includeAdmin {
 		return text
 	}

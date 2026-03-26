@@ -2,7 +2,7 @@
 
 Cassandrina is a gamified Bitcoin prediction and trading system.
 
-It lets a community submit daily BTC price predictions, pay for those predictions over the Lightning Network, convert the paid predictions into a consensus target price, score participants over time, choose a risk strategy from that consensus, and optionally place a live Binance trade based on the group's conviction.
+It lets a community submit daily BTC low/high range predictions, pay for those predictions over the Lightning Network, convert the paid predictions into a consensus market range and midpoint, score participants over time, choose a risk strategy from that consensus, and optionally place a live Binance trade based on the group's conviction.
 
 The repository currently contains:
 
@@ -16,10 +16,10 @@ The repository currently contains:
 At a high level, Cassandrina runs a daily prediction round:
 
 1. A prediction window opens.
-2. Users submit a BTC target price and a sats amount.
+2. Users send Cassandrina a private low/high BTC range and a sats amount.
 3. The system generates a Lightning invoice for each prediction.
 4. Only paid predictions count toward the round.
-5. Paid predictions are combined into a weighted target price.
+5. Paid predictions are combined into a weighted consensus low, high, and midpoint.
 6. The bot computes a confidence score from user history plus Polymarket context.
 7. A strategy from `A` to `E` is selected.
 8. The bot optionally places a Binance trade.
@@ -90,24 +90,26 @@ The Python scheduler opens a daily round and publishes an event on Redis.
 
 By default the round settings are:
 
-- prediction opens at `08:00 UTC`
-- prediction window lasts `6 hours`
-- settlement target time is `16:00 UTC`
+- prediction opens at `08:00` local scheduler time
+- prediction window lasts `11 hours`
+- settlement target time is `19:00` local scheduler time
 
 These values are configurable through the dashboard and stored in `bot_config`.
 
-### 2. Users submit predictions
+### 2. Users submit predictions in private chat
 
-In Telegram, users reply in this format:
+At `08:00 CET`, Cassandrina posts in the group that the prediction window is open, explains the format, and reminds users to send predictions in private chat.
+
+In the private Telegram chat with Cassandrina, users reply in this format:
 
 ```text
-<price> <sats>
+<lowest price until 19:00 CET> <highest price until 19:00 CET> <sats>
 ```
 
 Example:
 
 ```text
-95000 500
+82000 84500 3000
 ```
 
 The Telegram bot parses the message and sends it to the web API.
@@ -129,13 +131,20 @@ Only paid invoices turn into active predictions.
 
 When the window closes, Cassandrina looks only at paid predictions.
 
-The round target price is a sats-weighted average:
+The round consensus low and high are sats-weighted averages:
 
 ```text
-target_price = sum(predicted_price * sats_amount) / sum(sats_amount)
+target_low_price = sum(predicted_low_price * sats_amount) / sum(sats_amount)
+target_high_price = sum(predicted_high_price * sats_amount) / sum(sats_amount)
 ```
 
-This means larger paid predictions influence the final target more than smaller ones.
+Cassandrina then derives a single opening number from the consensus midpoint:
+
+```text
+target_price = (target_low_price + target_high_price) / 2
+```
+
+This means larger paid predictions influence the final market range and midpoint more than smaller ones.
 
 ### 5. Confidence is computed
 
@@ -184,12 +193,19 @@ If not, the system still creates the round analysis and trade record, but marks 
 
 At settlement time:
 
-- the actual BTC price is fetched
-- each paid prediction is checked for correctness
+- the actual BTC settlement price is fetched
+- the actual BTC day low and day high are fetched for the period from local midnight until settlement
+- each paid prediction is checked for correctness using its midpoint
+- each paid prediction also gets a low/high closeness score for reporting
 - user accuracy is updated
 - user congruency is updated
 - the open trade is closed and PnL is computed
 - profit or loss is distributed back to users proportionally to their sats contribution
+
+Cassandrina then:
+
+- posts a group settlement message with the real day range, trade result, and each user's low/high closeness
+- sends each participant a private message with their current balance, the day's PnL, and a random wise phrase
 
 ## Accuracy Rules
 
@@ -215,7 +231,8 @@ These are the practical rules enforced by the current codebase.
 
 ### Participation rules
 
-- Users submit predictions in Telegram group chat using `<price> <sats>`.
+- Cassandrina announces the open window in the group, but predictions themselves are sent only in private chat.
+- Users submit predictions in private Telegram chat using `<lowest> <highest> <sats>`.
 - Each user can submit only one prediction per round.
 - A prediction only counts after its Lightning invoice is paid.
 - If there is no open round, the API rejects the prediction.
@@ -323,15 +340,17 @@ Put simply:
 
 Suppose the following paid predictions exist:
 
-| User | Prediction | Sats |
-| --- | --- | --- |
-| Alice | `$100,000` | `1000` |
-| Bob | `$92,000` | `4000` |
+| User | Low | High | Sats |
+| --- | --- | --- | --- |
+| Alice | `$100,000` | `$104,000` | `1000` |
+| Bob | `$92,000` | `$96,000` | `4000` |
 
-The weighted target becomes:
+The weighted consensus range becomes:
 
 ```text
-((100000 * 1000) + (92000 * 4000)) / 5000 = 93,600
+target_low_price = ((100000 * 1000) + (92000 * 4000)) / 5000 = 93,600
+target_high_price = ((104000 * 1000) + (96000 * 4000)) / 5000 = 97,600
+target_price = (93,600 + 97,600) / 2 = 95,600
 ```
 
 If live BTC is currently `$93,000`, the direction becomes `long`.
@@ -412,11 +431,12 @@ The Python service is the decision engine. It handles:
 
 The Telegram bot handles:
 
-- group collection of predictions
+- group reminders when the prediction window opens
+- private collection of predictions in `<lowest> <highest> <sats>` format
 - DM delivery of Lightning invoices
-- round open and close announcements
-- trade open and close announcements
-- periodic stats updates
+- group summaries when the window closes
+- group settlement announcements at `19:00` local scheduler time
+- private participant settlement messages with balance and daily PnL
 - weekly vote prompts
 
 ## Data Model
@@ -550,6 +570,22 @@ Important keys include:
 - `weekly_vote_day`
 - `weekly_vote_hour`
 - `trading_enabled`
+
+## Telegram Commands
+
+User commands:
+
+- `/start` — show the private prediction format and current usage
+- `/help` — explain the current prediction flow and commands
+- `/my_stats` — show your Telegram-linked stats
+- `/health` — check whether the web app is reachable
+- `/status` — show bot role and current chat context
+
+Admin commands:
+
+- `/start_prediction <minutes>` — manually open a round for a custom duration
+- `/show_balance_stats` — show the current balance summary
+- `/show_user_stats` — show the current user ranking snapshot
 
 ## Current Behavior vs. Important Caveats
 
