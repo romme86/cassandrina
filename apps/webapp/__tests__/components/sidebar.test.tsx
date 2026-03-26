@@ -47,14 +47,15 @@ describe("Sidebar", () => {
     expect(link?.className).toMatch(/text-primary/);
   });
 
-  it("shows Live status when trading is enabled", () => {
+  it("shows live trading mode when trading is enabled", () => {
     render(<Sidebar tradingEnabled={true} />);
-    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Trading Mode")).toBeInTheDocument();
+    expect(screen.getByText("Live Trading")).toBeInTheDocument();
   });
 
-  it("shows Paused status when trading is disabled", () => {
+  it("shows dry-run mode when trading is disabled", () => {
     render(<Sidebar tradingEnabled={false} />);
-    expect(screen.getByText("Paused")).toBeInTheDocument();
+    expect(screen.getByText("Dry Run")).toBeInTheDocument();
   });
 
   it("renders brand name", () => {

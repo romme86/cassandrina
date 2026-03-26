@@ -10,6 +10,7 @@ import os
 import signal
 import sys
 import time
+from datetime import datetime, timezone
 
 import redis
 from dotenv import load_dotenv
@@ -44,6 +45,16 @@ logging.basicConfig(
     handlers=[_handler],
 )
 logger = logging.getLogger(__name__)
+
+CONTROL_POLL_INTERVAL_SECONDS = 5
+HEARTBEAT_INTERVAL_SECONDS = 15
+BOT_STATE_VALUES = {"running", "paused", "stopped"}
+
+
+def _normalize_bot_state(value: str | None, fallback: str = "running") -> str:
+    if value in BOT_STATE_VALUES:
+        return value
+    return fallback
 
 
 def main() -> None:
@@ -82,9 +93,60 @@ def main() -> None:
         market_data_client=market_data,
     )
 
+    scheduler_running = False
+    last_restart_token = ""
+    last_actual_state = "offline"
+    last_heartbeat_write = 0.0
+
+    def update_runtime_state(actual_state: str, *, force: bool = False) -> None:
+        nonlocal last_actual_state, last_heartbeat_write
+        now = time.monotonic()
+        state_changed = actual_state != last_actual_state
+        if not force and not state_changed and now - last_heartbeat_write < HEARTBEAT_INTERVAL_SECONDS:
+            return
+        db.set_bot_config_values(
+            {
+                "bot_actual_state": actual_state,
+                "bot_heartbeat_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        last_actual_state = actual_state
+        last_heartbeat_write = now
+
+    def reconcile_scheduler_state() -> None:
+        nonlocal scheduler_running, last_restart_token
+        bot_config = db.get_bot_config()
+        desired_state = _normalize_bot_state(bot_config.get("bot_desired_state"), "running")
+        restart_token = bot_config.get("bot_restart_token", "")
+
+        if desired_state == "running":
+            should_restart = bool(restart_token and restart_token != last_restart_token)
+            if scheduler_running and should_restart:
+                logger.info("Restart command received; restarting scheduler")
+                scheduler.stop()
+                scheduler_running = False
+            if not scheduler_running:
+                scheduler.start()
+                scheduler_running = True
+            if should_restart:
+                last_restart_token = restart_token
+            update_runtime_state("running", force=should_restart)
+            return
+
+        if scheduler_running:
+            logger.info("Applying bot state: %s", desired_state)
+            scheduler.stop()
+            scheduler_running = False
+        update_runtime_state(desired_state)
+
     def handle_shutdown(sig, frame):
         logger.info("Shutting down scheduler...")
-        scheduler.stop()
+        if scheduler_running:
+            scheduler.stop()
+        try:
+            db.set_bot_config_values({"bot_actual_state": "offline"})
+        except Exception:
+            logger.exception("Error updating bot runtime state")
         try:
             redis_client.close()
         except Exception:
@@ -98,12 +160,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
-    logger.info("Starting Cassandrina trading bot scheduler")
-    scheduler.start()
+    logger.info("Starting Cassandrina trading bot control loop")
 
-    # Keep alive
     while True:
-        time.sleep(60)
+        try:
+            reconcile_scheduler_state()
+        except Exception:
+            logger.exception("Failed to reconcile bot control state")
+        time.sleep(CONTROL_POLL_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

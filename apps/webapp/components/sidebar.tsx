@@ -85,21 +85,24 @@ export function Sidebar({ tradingEnabled = false }: SidebarProps) {
 
       {/* Trading status */}
       <div className="rounded-xl border border-white/5 bg-secondary/30 px-2 py-2">
+        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Trading Mode
+        </p>
         <div
           className={cn(
             "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium",
             tradingEnabled
               ? "bg-primary/10 text-primary border-primary/20"
-              : "bg-red-950/40 text-red-400 border-red-800/30"
+              : "bg-secondary text-muted-foreground border-white/10"
           )}
         >
           <span
             className={cn(
               "h-2 w-2 rounded-full shrink-0",
-              tradingEnabled ? "bg-primary animate-pulse" : "bg-red-400"
+              tradingEnabled ? "bg-primary animate-pulse" : "bg-muted-foreground"
             )}
           />
-          <span>{tradingEnabled ? "Live" : "Paused"}</span>
+          <span>{tradingEnabled ? "Live Trading" : "Dry Run"}</span>
         </div>
       </div>
     </div>

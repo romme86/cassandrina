@@ -74,6 +74,21 @@ class PostgresRepository:
             cur.execute("SELECT key, value FROM bot_config")
             return {row["key"]: row["value"] for row in cur.fetchall()}
 
+    def set_bot_config_values(self, values: dict[str, str]) -> None:
+        if not values:
+            return
+        with self._cursor(commit=True) as cur:
+            for key, value in values.items():
+                cur.execute(
+                    """
+                    INSERT INTO bot_config (key, value, updated_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (key)
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                    """,
+                    (key, value),
+                )
+
     def create_round(
         self,
         *,

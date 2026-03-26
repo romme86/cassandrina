@@ -7,6 +7,9 @@ import { NextRequest } from "next/server";
 
 jest.mock("@/lib/db", () => ({
   query: jest.fn(),
+  withTransaction: jest.fn(async (fn: (client: { query: jest.Mock }) => Promise<unknown>) =>
+    fn({ query: jest.fn() })
+  ),
 }));
 
 jest.mock("@cassandrina/shared", () => ({
@@ -21,6 +24,12 @@ jest.mock("@cassandrina/shared", () => ({
       return { success: true, data: input ?? {} };
     },
   },
+}));
+
+jest.mock("@/lib/admin", () => ({
+  isAdminRequest: jest.fn((request: NextRequest) =>
+    request.headers.get("cookie")?.includes("cassandrina_admin=") ?? false
+  ),
 }));
 
 import { GET, POST } from "@/app/api/config/route";

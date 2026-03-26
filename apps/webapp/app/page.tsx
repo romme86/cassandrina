@@ -14,6 +14,8 @@ import { StrategyBadge } from "@/components/strategy-badge";
 import { PnlChart } from "@/components/pnl-chart";
 import { StrategyChart } from "@/components/strategy-chart";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { BotLifecycleBadge } from "@/components/bot-lifecycle-badge";
+import { deriveBotControlStatus } from "@/lib/bot-control";
 
 export const revalidate = 30;
 
@@ -100,6 +102,17 @@ async function getStrategyData() {
   }
 }
 
+async function getBotStatus() {
+  try {
+    const rows = await query<{ key: string; value: string }>(
+      "SELECT key, value FROM bot_config"
+    );
+    return deriveBotControlStatus(Object.fromEntries(rows.map((row) => [row.key, row.value])));
+  } catch {
+    return deriveBotControlStatus({});
+  }
+}
+
 function timeInTrade(openedAt: string): string {
   const ms = Date.now() - new Date(openedAt).getTime();
   const h = Math.floor(ms / 3_600_000);
@@ -154,7 +167,7 @@ function KpiCard({
 }
 
 export default async function DashboardPage() {
-  const [trades, round, totalSats, todayPnl, pnlData, strategyData] =
+  const [trades, round, totalSats, todayPnl, pnlData, strategyData, botStatus] =
     await Promise.all([
       getOpenTrades(),
       getCurrentRound(),
@@ -162,6 +175,7 @@ export default async function DashboardPage() {
       getTodayPnl(),
       getPnlData(),
       getStrategyData(),
+      getBotStatus(),
     ]);
 
   return (
@@ -175,13 +189,7 @@ export default async function DashboardPage() {
             Live data from Telegram consensus and execution activity.
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-          </span>
-          Bot Active
-        </span>
+        <BotLifecycleBadge state={botStatus.actualState} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

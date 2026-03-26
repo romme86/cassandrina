@@ -134,7 +134,11 @@ INSERT INTO bot_config (key, value) VALUES
     ('weekly_vote_day', '6'),
     ('weekly_vote_hour', '20'),
     ('report_hours_before_target', '8'),
-    ('trading_enabled', 'true')
+    ('trading_enabled', 'true'),
+    ('bot_desired_state', 'running'),
+    ('bot_actual_state', 'offline'),
+    ('bot_restart_token', ''),
+    ('bot_heartbeat_at', '')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================
