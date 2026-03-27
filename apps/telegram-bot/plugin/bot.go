@@ -254,6 +254,22 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 			replyIDForChat(msg),
 		)
 		return true
+	case "/prediction_status":
+		status, err := b.api.GetPredictionStatus()
+		if err != nil {
+			b.replyAPIError(ctx, msg, err)
+			return true
+		}
+		b.sendChunkedMessages(ctx, msg.Chat.ID, formatPredictionStatusMessages(status), replyIDForChat(msg))
+		return true
+	case "/position_status":
+		status, err := b.api.GetPositionStatus()
+		if err != nil {
+			b.replyAPIError(ctx, msg, err)
+			return true
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, formatPositionStatusMessage(status), replyIDForChat(msg))
+		return true
 	case "/my_stats":
 		if !b.api.HasAdminSecret() {
 			_ = b.telegram.SendMessage(ctx, msg.Chat.ID, "User stats are not configured yet. Set INTERNAL_API_SECRET in the bot and webapp services.", replyIDForChat(msg))
@@ -511,7 +527,7 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nCassandrina will reply here with your Lightning invoice. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status"
+	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nCassandrina will reply here with your Lightning invoice. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
 	if !includeAdmin {
 		return text
 	}
@@ -519,7 +535,7 @@ func startMessage(includeAdmin bool) string {
 }
 
 func helpMessage(includeAdmin bool) string {
-	text := "Cassandrina bot help\n\nHow it works:\n1. At 08:00 CET Cassandrina posts in the group that the prediction window is open.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Example: 82000 84500 3000\n4. Cassandrina replies with a Lightning invoice in private.\n5. Pay the invoice before the window closes.\n6. When the window closes, the group gets the confirmed predictions plus the market position summary.\n7. At 19:00 CET Cassandrina settles the position, posts the result in the group, and sends each participant a private balance update.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status"
+	text := "Cassandrina bot help\n\nHow it works:\n1. At 08:00 CET Cassandrina posts in the group that the prediction window is open.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Example: 82000 84500 3000\n4. Cassandrina replies with a Lightning invoice in private.\n5. Pay the invoice before the window closes.\n6. When the window closes, the group gets the confirmed predictions plus the market position summary.\n7. At 19:00 CET Cassandrina settles the position, posts the result in the group, and sends each participant a private balance update.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
 	if !includeAdmin {
 		return text
 	}
@@ -574,6 +590,67 @@ func formatStatusMessage(isAdmin bool, hasAdminAPI bool, isPrivateChat bool) str
 		chatType,
 		adminAPI,
 	)
+}
+
+func formatPredictionStatusMessages(status *PredictionStatusResponse) []string {
+	if status == nil || !status.HasRound || status.RoundID == nil {
+		return []string{"Prediction status\n\nNo prediction round has been opened yet."}
+	}
+
+	lines := []string{
+		"Prediction status",
+		"",
+		fmt.Sprintf("Round: #%d", *status.RoundID),
+		fmt.Sprintf("Status: %s", status.Status),
+		fmt.Sprintf(
+			"Target: %02d:00 %s on %s",
+			status.TargetHour,
+			timeZoneLabel(status.TargetTimeZone),
+			status.QuestionDate,
+		),
+	}
+	if strings.TrimSpace(status.OpenAt) != "" {
+		lines = append(lines, fmt.Sprintf("Opened: %s", formatLocalTime(status.OpenAt)))
+	}
+	if strings.TrimSpace(status.CloseAt) != "" {
+		closeLabel := "Closed"
+		if status.Status == "open" {
+			closeLabel = "Closes"
+		}
+		lines = append(lines, fmt.Sprintf("%s: %s", closeLabel, formatLocalTime(status.CloseAt)))
+	}
+
+	lines = append(
+		lines,
+		"",
+		fmt.Sprintf("Participants: %d", status.ParticipantCount),
+		fmt.Sprintf("Confirmed: %d", status.ConfirmedCount),
+		"",
+		"Predictions shown here never include price ranges or sats amounts.",
+	)
+
+	if len(status.Participants) == 0 {
+		lines = append(lines, "", "No predictions submitted yet.")
+		return []string{strings.Join(lines, "\n")}
+	}
+
+	chunks := []string{strings.Join(lines, "\n")}
+	current := "Participants"
+	for i, participant := range status.Participants {
+		state := "invoice pending"
+		if participant.Paid {
+			state = "confirmed"
+		}
+		entry := fmt.Sprintf("\n\n%d. %s\nStatus: %s", i+1, participant.DisplayName, state)
+		if len(current)+len(entry) > 3500 {
+			chunks = append(chunks, current)
+			current = "Participants (cont.)" + entry
+			continue
+		}
+		current += entry
+	}
+	chunks = append(chunks, current)
+	return chunks
 }
 
 func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone, closeAt string, minSats int, maxSats int) string {
@@ -651,6 +728,87 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func formatPositionStatusMessage(status *PositionStatusResponse) string {
+	if status == nil {
+		return "Position status\n\nNo position data is available."
+	}
+
+	switch status.Phase {
+	case "open_position", "last_position":
+		title := "Position status"
+		if status.Phase == "last_position" && status.Status != "open" {
+			title = "Latest position status"
+		}
+		lines := []string{
+			title,
+			"",
+		}
+		if status.TradeID != nil {
+			lines = append(lines, fmt.Sprintf("Trade: #%d", *status.TradeID))
+		}
+		if status.RoundID != nil {
+			lines = append(lines, fmt.Sprintf("Round: #%d", *status.RoundID))
+		}
+		lines = append(
+			lines,
+			fmt.Sprintf("Status: %s", status.Status),
+			fmt.Sprintf(
+				"Target: %02d:00 %s on %s",
+				status.TargetHour,
+				timeZoneLabel(status.TargetTimeZone),
+				status.QuestionDate,
+			),
+			fmt.Sprintf("Direction: %s", strings.ToUpper(status.Direction)),
+			fmt.Sprintf("Strategy: %s", status.Strategy),
+			fmt.Sprintf("Opening number: $%.2f", status.TargetPrice),
+			fmt.Sprintf("Entry: $%.2f", status.EntryPrice),
+			fmt.Sprintf("Leverage: %dx", status.Leverage),
+		)
+		if strings.TrimSpace(status.OpenedAt) != "" {
+			lines = append(lines, fmt.Sprintf("Opened: %s", formatLocalTime(status.OpenedAt)))
+		}
+		if strings.TrimSpace(status.ClosedAt) != "" {
+			lines = append(lines, fmt.Sprintf("Closed: %s", formatLocalTime(status.ClosedAt)))
+		}
+		if status.PnLSats != nil {
+			lines = append(lines, fmt.Sprintf("PnL: %s", formatSignedSats(*status.PnLSats)))
+		}
+		return strings.Join(lines, "\n")
+	case "prediction_window_open":
+		lines := []string{
+			"Position status",
+			"",
+			"No position is open yet.",
+			fmt.Sprintf(
+				"Current round: %02d:00 %s on %s",
+				status.TargetHour,
+				timeZoneLabel(status.TargetTimeZone),
+				status.QuestionDate,
+			),
+		}
+		if strings.TrimSpace(status.CloseAt) != "" {
+			lines = append(lines, fmt.Sprintf("Prediction window closes: %s", formatLocalTime(status.CloseAt)))
+		}
+		lines = append(lines, "Cassandrina opens the position after the prediction window closes.")
+		return strings.Join(lines, "\n")
+	case "awaiting_position":
+		lines := []string{
+			"Position status",
+			"",
+			"The prediction round is closed, but no position has been opened yet.",
+		}
+		if status.RoundID != nil {
+			lines = append(lines, fmt.Sprintf("Round: #%d", *status.RoundID))
+		}
+		if strings.TrimSpace(status.CloseAt) != "" {
+			lines = append(lines, fmt.Sprintf("Round closed: %s", formatLocalTime(status.CloseAt)))
+		}
+		return strings.Join(lines, "\n")
+	default:
+		return "Position status\n\nNo position has been opened yet."
+	}
 }
 
 func formatSettlementMessage(

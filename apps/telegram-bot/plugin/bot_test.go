@@ -187,6 +187,12 @@ func TestHelpCommandShowsUserInstructions(t *testing.T) {
 	if !contains(gateway.messages[0].text, "/status") {
 		t.Fatalf("expected status command in help, got %q", gateway.messages[0].text)
 	}
+	if !contains(gateway.messages[0].text, "/prediction_status") {
+		t.Fatalf("expected prediction_status command in help, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "/position_status") {
+		t.Fatalf("expected position_status command in help, got %q", gateway.messages[0].text)
+	}
 	if contains(gateway.messages[0].text, "/start_prediction <minutes>") {
 		t.Fatalf("did not expect admin commands for non-admin, got %q", gateway.messages[0].text)
 	}
@@ -361,6 +367,98 @@ func TestMyStatsCommandShowsDefaultsForUnregisteredUser(t *testing.T) {
 	}
 	if !contains(gateway.messages[0].text, "Predictions: 0") {
 		t.Fatalf("expected zero prediction count, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestPredictionStatusCommandShowsParticipantsWithoutAmounts(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/predictions/status" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"has_round":true,"round_id":12,"question_date":"2026-03-27","target_hour":19,"target_timezone":"Europe/Zurich","open_at":"2026-03-27T07:00:00Z","close_at":"2026-03-27T08:30:00Z","status":"open","participant_count":2,"confirmed_count":1,"participants":[{"display_name":"Alice","paid":true,"created_at":"2026-03-27T07:05:00Z","paid_at":"2026-03-27T07:06:00Z"},{"display_name":"Bob","paid":false,"created_at":"2026-03-27T07:10:00Z","paid_at":""}]}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/prediction_status",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "user"},
+	})
+
+	if len(gateway.messages) != 2 {
+		t.Fatalf("expected 2 prediction status messages, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Round: #12") {
+		t.Fatalf("expected round id in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Predictions shown here never include price ranges or sats amounts.") {
+		t.Fatalf("expected privacy note in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[1].text, "1. Alice") || !contains(gateway.messages[1].text, "Status: confirmed") {
+		t.Fatalf("expected confirmed participant in output, got %q", gateway.messages[1].text)
+	}
+	if !contains(gateway.messages[1].text, "2. Bob") || !contains(gateway.messages[1].text, "Status: invoice pending") {
+		t.Fatalf("expected pending participant in output, got %q", gateway.messages[1].text)
+	}
+	if contains(gateway.messages[0].text, "82000") || contains(gateway.messages[1].text, "82000") {
+		t.Fatalf("did not expect any prediction prices in output")
+	}
+}
+
+func TestPositionStatusCommandShowsOpenPosition(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/position/status" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"phase":"open_position","has_position":true,"trade_id":44,"round_id":12,"question_date":"2026-03-27","target_hour":19,"target_timezone":"Europe/Zurich","open_at":"","close_at":"","status":"open","strategy":"C","direction":"long","entry_price":87123.45,"target_price":87000,"leverage":3,"opened_at":"2026-03-27T08:35:00Z","closed_at":"","pnl_sats":null}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/position_status",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "user"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 position status message, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Trade: #44") {
+		t.Fatalf("expected trade id in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Direction: LONG") {
+		t.Fatalf("expected direction in output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Strategy: C") {
+		t.Fatalf("expected strategy in output, got %q", gateway.messages[0].text)
 	}
 }
 

@@ -76,6 +76,48 @@ type HealthResponse struct {
 	Status string `json:"status"`
 }
 
+type PredictionStatusParticipant struct {
+	DisplayName string `json:"display_name"`
+	Paid        bool   `json:"paid"`
+	CreatedAt   string `json:"created_at"`
+	PaidAt      string `json:"paid_at"`
+}
+
+type PredictionStatusResponse struct {
+	HasRound         bool                          `json:"has_round"`
+	RoundID          *int                          `json:"round_id"`
+	QuestionDate     string                        `json:"question_date"`
+	TargetHour       int                           `json:"target_hour"`
+	TargetTimeZone   string                        `json:"target_timezone"`
+	OpenAt           string                        `json:"open_at"`
+	CloseAt          string                        `json:"close_at"`
+	Status           string                        `json:"status"`
+	ParticipantCount int                           `json:"participant_count"`
+	ConfirmedCount   int                           `json:"confirmed_count"`
+	Participants     []PredictionStatusParticipant `json:"participants"`
+}
+
+type PositionStatusResponse struct {
+	Phase          string  `json:"phase"`
+	HasPosition    bool    `json:"has_position"`
+	TradeID        *int    `json:"trade_id"`
+	RoundID        *int    `json:"round_id"`
+	QuestionDate   string  `json:"question_date"`
+	TargetHour     int     `json:"target_hour"`
+	TargetTimeZone string  `json:"target_timezone"`
+	OpenAt         string  `json:"open_at"`
+	CloseAt        string  `json:"close_at"`
+	Status         string  `json:"status"`
+	Strategy       string  `json:"strategy"`
+	Direction      string  `json:"direction"`
+	EntryPrice     float64 `json:"entry_price"`
+	TargetPrice    float64 `json:"target_price"`
+	Leverage       int     `json:"leverage"`
+	OpenedAt       string  `json:"opened_at"`
+	ClosedAt       string  `json:"closed_at"`
+	PnLSats        *int    `json:"pnl_sats"`
+}
+
 type apiErrorResponse struct {
 	Error string `json:"error"`
 }
@@ -209,6 +251,34 @@ func (c *WebappClient) GetHealth() (*HealthResponse, error) {
 	}
 
 	var result HealthResponse
+	if err := c.doJSON(request, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (c *WebappClient) GetPredictionStatus() (*PredictionStatusResponse, error) {
+	request, err := c.newJSONRequest(http.MethodGet, "/api/predictions/status", nil, false)
+	if err != nil {
+		return nil, err
+	}
+
+	var result PredictionStatusResponse
+	if err := c.doJSON(request, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (c *WebappClient) GetPositionStatus() (*PositionStatusResponse, error) {
+	request, err := c.newJSONRequest(http.MethodGet, "/api/position/status", nil, false)
+	if err != nil {
+		return nil, err
+	}
+
+	var result PositionStatusResponse
 	if err := c.doJSON(request, &result); err != nil {
 		return nil, err
 	}

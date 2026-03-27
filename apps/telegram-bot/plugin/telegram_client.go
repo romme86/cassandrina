@@ -95,9 +95,9 @@ func (c *TelegramClient) GetUpdates(ctx context.Context, offset int, timeoutSeco
 
 func (c *TelegramClient) SendMessage(ctx context.Context, chatID int64, text string, replyToMessageID int) error {
 	payload := map[string]interface{}{
-		"chat_id":                   chatID,
-		"text":                      text,
-		"disable_web_page_preview":  true,
+		"chat_id":                  chatID,
+		"text":                     text,
+		"disable_web_page_preview": true,
 	}
 	if replyToMessageID > 0 {
 		payload["reply_to_message_id"] = replyToMessageID
@@ -145,6 +145,8 @@ func (c *TelegramClient) SyncCommands(ctx context.Context) error {
 			{Command: "my_stats", Description: "Show your Telegram-linked stats"},
 			{Command: "health", Description: "Check webapp health from the bot"},
 			{Command: "status", Description: "Show bot status and role info"},
+			{Command: "prediction_status", Description: "Show the current prediction round status"},
+			{Command: "position_status", Description: "Show the current market position status"},
 		},
 	}
 
