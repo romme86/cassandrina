@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS predictions (
     id                  BIGSERIAL,
     round_id            INT NOT NULL REFERENCES prediction_rounds(id) ON DELETE CASCADE,
     user_id             INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    telegram_group_chat_id TEXT,
+    telegram_group_name TEXT,
     predicted_low_price FLOAT NOT NULL CHECK (predicted_low_price > 0),
     predicted_high_price FLOAT NOT NULL CHECK (predicted_high_price >= predicted_low_price),
     predicted_price     FLOAT NOT NULL CHECK (predicted_price > 0),
@@ -184,6 +186,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_predictions_round_id ON predictions(round_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_user_id ON predictions(user_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_paid ON predictions(paid);
+CREATE INDEX IF NOT EXISTS idx_predictions_telegram_group_chat_id ON predictions(telegram_group_chat_id);
+CREATE INDEX IF NOT EXISTS idx_predictions_telegram_group_name ON predictions(telegram_group_name);
 CREATE INDEX IF NOT EXISTS idx_prediction_rounds_question_date ON prediction_rounds(question_date);
 CREATE INDEX IF NOT EXISTS idx_trades_round_id ON trades(round_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);

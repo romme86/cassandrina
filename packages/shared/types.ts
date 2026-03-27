@@ -32,6 +32,8 @@ export interface Prediction {
   id: number;
   round_id: number;
   user_id: number;
+  telegram_group_chat_id?: string | null;
+  telegram_group_name?: string | null;
   predicted_low_price: number;
   predicted_high_price: number;
   predicted_price: number;

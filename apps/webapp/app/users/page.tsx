@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { query } from "@/lib/db";
+import { getGroupLeaderboard, type GroupLeaderboardRow } from "@/lib/group-leaderboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScoreBar } from "@/components/score-bar";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Trophy } from "lucide-react";
+import { Trophy, Users } from "lucide-react";
 
 export const revalidate = 30;
 
@@ -34,6 +35,14 @@ async function getUsers(): Promise<UserRow[]> {
        GROUP BY u.id
        ORDER BY u.accuracy DESC`
     );
+  } catch {
+    return [];
+  }
+}
+
+async function getGroups(): Promise<GroupLeaderboardRow[]> {
+  try {
+    return await getGroupLeaderboard();
   } catch {
     return [];
   }
@@ -92,6 +101,20 @@ function UserAvatar({ name }: { name: string }) {
   );
 }
 
+function GroupAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 text-blue-300 text-sm font-bold ring-1 ring-blue-400/20 shrink-0">
+      {initials || "G"}
+    </div>
+  );
+}
+
 function UserCard({
   user,
   rank,
@@ -138,12 +161,59 @@ function UserCard({
   );
 }
 
+function GroupCard({
+  group,
+  rank,
+}: {
+  group: GroupLeaderboardRow;
+  rank: number;
+}) {
+  return (
+    <Card className="hover:border-blue-400/30 hover:bg-secondary/30 transition-all">
+      <CardContent className="pt-4 pb-4">
+        <div className="flex items-center gap-4">
+          <RankBadge rank={rank} />
+          <GroupAvatar name={group.group_name} />
+
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-white truncate">{group.group_name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {group.participant_count} members · {group.total_predictions} predictions
+            </p>
+          </div>
+
+          <div className="hidden md:grid grid-cols-2 gap-6 w-56">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Avg Accuracy</p>
+              <ScoreBar value={group.average_accuracy} />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Avg Congruency</p>
+              <ScoreBar value={group.average_congruency} />
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <p className="text-xs text-muted-foreground">Group balance</p>
+            <p className="font-mono font-bold text-blue-300 text-lg">
+              {group.balance_sats.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function UsersPage() {
-  const users = await getUsers();
+  const [users, groups] = await Promise.all([getUsers(), getGroups()]);
 
   const byAccuracy = [...users].sort((a, b) => b.accuracy - a.accuracy);
   const byCongruency = [...users].sort((a, b) => b.congruency - a.congruency);
   const bySats = [...users].sort((a, b) => b.total_sats_won - a.total_sats_won);
+  const groupsByBalance = [...groups].sort((a, b) => b.balance_sats - a.balance_sats);
+  const groupsByAccuracy = [...groups].sort((a, b) => b.average_accuracy - a.average_accuracy);
+  const groupsByPredictions = [...groups].sort((a, b) => b.total_predictions - a.total_predictions);
 
   return (
     <div className="space-y-6">
@@ -155,39 +225,85 @@ export default async function UsersPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-white">Leaderboard</h1>
-          <p className="text-sm text-muted-foreground">{users.length} participants</p>
+          <p className="text-sm text-muted-foreground">
+            {users.length} participants · {groups.length} groups
+          </p>
         </div>
       </div>
 
-      {users.length === 0 ? (
-        <p className="text-muted-foreground">No users yet.</p>
-      ) : (
-        <Tabs defaultValue="accuracy">
-          <TabsList className="bg-secondary border border-border/30">
-            <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
-            <TabsTrigger value="congruency">Congruency</TabsTrigger>
-            <TabsTrigger value="sats">Sats Won</TabsTrigger>
-          </TabsList>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-primary" />
+          <h2 className="text-lg font-semibold text-white">Users</h2>
+        </div>
 
-          <TabsContent value="accuracy" className="space-y-2 mt-4">
-            {byAccuracy.map((u, i) => (
-              <UserCard key={u.id} user={u} rank={i + 1} />
-            ))}
-          </TabsContent>
+        {users.length === 0 ? (
+          <p className="text-muted-foreground">No users yet.</p>
+        ) : (
+          <Tabs defaultValue="accuracy">
+            <TabsList className="bg-secondary border border-border/30">
+              <TabsTrigger value="accuracy">Accuracy</TabsTrigger>
+              <TabsTrigger value="congruency">Congruency</TabsTrigger>
+              <TabsTrigger value="sats">Sats Won</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="congruency" className="space-y-2 mt-4">
-            {byCongruency.map((u, i) => (
-              <UserCard key={u.id} user={u} rank={i + 1} />
-            ))}
-          </TabsContent>
+            <TabsContent value="accuracy" className="space-y-2 mt-4">
+              {byAccuracy.map((u, i) => (
+                <UserCard key={u.id} user={u} rank={i + 1} />
+              ))}
+            </TabsContent>
 
-          <TabsContent value="sats" className="space-y-2 mt-4">
-            {bySats.map((u, i) => (
-              <UserCard key={u.id} user={u} rank={i + 1} />
-            ))}
-          </TabsContent>
-        </Tabs>
-      )}
+            <TabsContent value="congruency" className="space-y-2 mt-4">
+              {byCongruency.map((u, i) => (
+                <UserCard key={u.id} user={u} rank={i + 1} />
+              ))}
+            </TabsContent>
+
+            <TabsContent value="sats" className="space-y-2 mt-4">
+              {bySats.map((u, i) => (
+                <UserCard key={u.id} user={u} rank={i + 1} />
+              ))}
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-blue-300" />
+          <h2 className="text-lg font-semibold text-white">Groups</h2>
+        </div>
+
+        {groups.length === 0 ? (
+          <p className="text-muted-foreground">No Telegram groups tracked yet.</p>
+        ) : (
+          <Tabs defaultValue="balance">
+            <TabsList className="bg-secondary border border-border/30">
+              <TabsTrigger value="balance">Balance</TabsTrigger>
+              <TabsTrigger value="accuracy">Avg Accuracy</TabsTrigger>
+              <TabsTrigger value="predictions">Predictions</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="balance" className="space-y-2 mt-4">
+              {groupsByBalance.map((group, i) => (
+                <GroupCard key={`${group.telegram_group_chat_id}-${group.group_name}`} group={group} rank={i + 1} />
+              ))}
+            </TabsContent>
+
+            <TabsContent value="accuracy" className="space-y-2 mt-4">
+              {groupsByAccuracy.map((group, i) => (
+                <GroupCard key={`${group.telegram_group_chat_id}-${group.group_name}`} group={group} rank={i + 1} />
+              ))}
+            </TabsContent>
+
+            <TabsContent value="predictions" className="space-y-2 mt-4">
+              {groupsByPredictions.map((group, i) => (
+                <GroupCard key={`${group.telegram_group_chat_id}-${group.group_name}`} group={group} rank={i + 1} />
+              ))}
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
     </div>
   );
 }

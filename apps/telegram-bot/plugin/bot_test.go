@@ -18,6 +18,7 @@ type sentMessage struct {
 type fakeTelegramGateway struct {
 	messages    []sentMessage
 	sendError   error
+	chatTitles  map[int64]string
 	deepLinkURL string
 }
 
@@ -28,6 +29,13 @@ func (f *fakeTelegramGateway) GetUpdates(context.Context, int, int) ([]Update, e
 func (f *fakeTelegramGateway) SendMessage(_ context.Context, chatID int64, text string, replyToMessageID int) error {
 	f.messages = append(f.messages, sentMessage{chatID: chatID, text: text, replyToMessageID: replyToMessageID})
 	return f.sendError
+}
+
+func (f *fakeTelegramGateway) GetChatTitle(_ context.Context, chatID int64) (string, error) {
+	if f.chatTitles == nil {
+		return "", nil
+	}
+	return f.chatTitles[chatID], nil
 }
 
 func (f *fakeTelegramGateway) DeepLink(context.Context) string {
@@ -219,6 +227,9 @@ func TestHelpCommandShowsAdminCommandsForAdmin(t *testing.T) {
 	}
 	if !contains(gateway.messages[0].text, "/start_prediction <minutes>") {
 		t.Fatalf("expected admin commands in help, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "/show_group_stats") {
+		t.Fatalf("expected group stats command in help, got %q", gateway.messages[0].text)
 	}
 }
 
@@ -591,6 +602,109 @@ func TestAdminShowUserStatsFormatsReadableMessage(t *testing.T) {
 	}
 	if !contains(gateway.messages[0].text, "2. Bob") {
 		t.Fatalf("expected Bob in stats output, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestAdminShowGroupStatsFormatsReadableMessage(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/admin/stats/groups" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`[
+				{"group_name":"Friends of BTC","telegram_group_chat_id":"-100123","average_accuracy":61.5,"average_congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7,"participant_count":3},
+				{"group_name":"Weekend Traders","telegram_group_chat_id":"-100456","average_accuracy":55.0,"average_congruency":49.0,"balance_sats":900,"profit_sats":-100,"total_predictions":4,"participant_count":2}
+			]`)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/show_group_stats",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 stats message, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "1. Friends of BTC") {
+		t.Fatalf("expected Friends of BTC in stats output, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Members 3 | Predictions 7") {
+		t.Fatalf("expected member and prediction counts, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Bal 1,234 sats | PnL +234 sats") {
+		t.Fatalf("expected formatted sats output, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/predictions" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		payload := string(body)
+		if !contains(payload, `"telegram_group_chat_id":"-42"`) {
+			t.Fatalf("expected group chat id in payload, got %s", payload)
+		}
+		if !contains(payload, `"telegram_group_name":"Friends of BTC"`) {
+			t.Fatalf("expected group name in payload, got %s", payload)
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"prediction_id":99,"lightning_invoice":"lnbc500n1...","expires_at":"2026-03-27T10:00:00Z"}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{
+		chatTitles: map[int64]string{-42: "Friends of BTC"},
+	}
+	bot := &Bot{
+		cfg: &Config{
+			GroupChatID: -42,
+			MinSats:     100,
+			MaxSats:     5000,
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "93000 97000 500",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "alice"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 invoice DM, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Pay this Lightning invoice to confirm") {
+		t.Fatalf("expected invoice instructions, got %q", gateway.messages[0].text)
 	}
 }
 

@@ -15,13 +15,15 @@ const adminSecretHeader = "x-cassandrina-admin-secret"
 
 // PredictionRequest is sent to POST /api/predictions.
 type PredictionRequest struct {
-	Platform           string  `json:"platform"`
-	PlatformUserID     string  `json:"platform_user_id"`
-	DisplayName        string  `json:"display_name,omitempty"`
-	PredictedLowPrice  float64 `json:"predicted_low_price"`
-	PredictedHighPrice float64 `json:"predicted_high_price"`
-	SatsAmount         int     `json:"sats_amount"`
-	RoundID            int     `json:"round_id,omitempty"`
+	Platform            string  `json:"platform"`
+	PlatformUserID      string  `json:"platform_user_id"`
+	DisplayName         string  `json:"display_name,omitempty"`
+	TelegramGroupChatID string  `json:"telegram_group_chat_id,omitempty"`
+	TelegramGroupName   string  `json:"telegram_group_name,omitempty"`
+	PredictedLowPrice   float64 `json:"predicted_low_price"`
+	PredictedHighPrice  float64 `json:"predicted_high_price"`
+	SatsAmount          int     `json:"sats_amount"`
+	RoundID             int     `json:"round_id,omitempty"`
 }
 
 // PredictionResponse is returned by POST /api/predictions.
@@ -59,6 +61,17 @@ type UserStatsRow struct {
 	BalanceSats      int     `json:"balance_sats"`
 	ProfitSats       int     `json:"profit_sats"`
 	TotalPredictions int     `json:"total_predictions"`
+}
+
+type GroupStatsRow struct {
+	GroupName           string  `json:"group_name"`
+	TelegramGroupChatID string  `json:"telegram_group_chat_id"`
+	AverageAccuracy     float64 `json:"average_accuracy"`
+	AverageCongruency   float64 `json:"average_congruency"`
+	BalanceSats         int     `json:"balance_sats"`
+	ProfitSats          int     `json:"profit_sats"`
+	TotalPredictions    int     `json:"total_predictions"`
+	ParticipantCount    int     `json:"participant_count"`
 }
 
 type MyStatsResponse struct {
@@ -214,6 +227,20 @@ func (c *WebappClient) GetUserStats() ([]UserStatsRow, error) {
 	}
 
 	var result []UserStatsRow
+	if err := c.doJSON(request, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (c *WebappClient) GetGroupStats() ([]GroupStatsRow, error) {
+	request, err := c.newJSONRequest(http.MethodGet, "/api/admin/stats/groups", nil, true)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []GroupStatsRow
 	if err := c.doJSON(request, &result); err != nil {
 		return nil, err
 	}

@@ -156,14 +156,17 @@ func (b *Bot) handlePrivateMessage(ctx context.Context, msg *Message) {
 func (b *Bot) submitPrediction(ctx context.Context, msg *Message, pred *Prediction) {
 	senderID := strconv.FormatInt(msg.From.ID, 10)
 	displayName := telegramDisplayName(msg.From)
+	groupChatID, groupName := b.predictionGroupMetadata(ctx)
 
 	resp, err := b.api.CreatePrediction(PredictionRequest{
-		Platform:           "telegram",
-		PlatformUserID:     senderID,
-		DisplayName:        displayName,
-		PredictedLowPrice:  pred.PredictedLowPrice,
-		PredictedHighPrice: pred.PredictedHighPrice,
-		SatsAmount:         pred.SatsAmount,
+		Platform:            "telegram",
+		PlatformUserID:      senderID,
+		DisplayName:         displayName,
+		TelegramGroupChatID: groupChatID,
+		TelegramGroupName:   groupName,
+		PredictedLowPrice:   pred.PredictedLowPrice,
+		PredictedHighPrice:  pred.PredictedHighPrice,
+		SatsAmount:          pred.SatsAmount,
 	})
 	if err != nil {
 		log.Printf("[bot] failed to create prediction for %s: %v", senderID, err)
@@ -194,6 +197,26 @@ func (b *Bot) submitPrediction(ctx context.Context, msg *Message, pred *Predicti
 		}
 		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
 	}
+}
+
+func (b *Bot) predictionGroupMetadata(ctx context.Context) (string, string) {
+	chatID := strconv.FormatInt(b.cfg.GroupChatID, 10)
+	groupName := defaultTelegramGroupName(b.cfg.GroupChatID)
+
+	if b.telegram == nil {
+		return chatID, groupName
+	}
+
+	title, err := b.telegram.GetChatTitle(ctx, b.cfg.GroupChatID)
+	if err != nil {
+		log.Printf("[telegram] getChat title failed: %v", err)
+		return chatID, groupName
+	}
+	if strings.TrimSpace(title) != "" {
+		groupName = strings.TrimSpace(title)
+	}
+
+	return chatID, groupName
 }
 
 func (b *Bot) handleSettlementEvent(ctx context.Context, status string, payload map[string]interface{}) {
@@ -331,6 +354,17 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 			return true
 		}
 		b.sendChunkedMessages(ctx, msg.Chat.ID, formatUserStatsMessages(rows), replyIDForChat(msg))
+		return true
+	case "/show_group_stats":
+		if !b.requireAdmin(ctx, msg) || !b.requireAdminAPI(ctx, msg) {
+			return true
+		}
+		rows, err := b.api.GetGroupStats()
+		if err != nil {
+			b.replyAPIError(ctx, msg, err)
+			return true
+		}
+		b.sendChunkedMessages(ctx, msg.Chat.ID, formatGroupStatsMessages(rows), replyIDForChat(msg))
 		return true
 	default:
 		return false
@@ -531,7 +565,7 @@ func startMessage(includeAdmin bool) string {
 	if !includeAdmin {
 		return text
 	}
-	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats"
+	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats"
 }
 
 func helpMessage(includeAdmin bool) string {
@@ -539,7 +573,7 @@ func helpMessage(includeAdmin bool) string {
 	if !includeAdmin {
 		return text
 	}
-	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats"
+	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats"
 }
 
 func formatHealthMessage(health *HealthResponse, hasAdminAPI bool) string {
@@ -912,6 +946,36 @@ func formatUserStatsMessages(rows []UserStatsRow) []string {
 	return chunks
 }
 
+func formatGroupStatsMessages(rows []GroupStatsRow) []string {
+	if len(rows) == 0 {
+		return []string{"Group stats\n\nNo Telegram groups tracked yet."}
+	}
+
+	chunks := make([]string, 0, 1)
+	current := "Group stats"
+	for i, row := range rows {
+		entry := fmt.Sprintf(
+			"\n\n%d. %s\nAvg acc %.1f%% | Avg cong %.1f%%\nMembers %d | Predictions %d\nBal %s | PnL %s",
+			i+1,
+			row.GroupName,
+			row.AverageAccuracy,
+			row.AverageCongruency,
+			row.ParticipantCount,
+			row.TotalPredictions,
+			formatSats(row.BalanceSats),
+			formatSignedSats(row.ProfitSats),
+		)
+		if len(current)+len(entry) > 3500 {
+			chunks = append(chunks, current)
+			current = "Group stats (cont.)" + entry
+			continue
+		}
+		current += entry
+	}
+	chunks = append(chunks, current)
+	return chunks
+}
+
 func formatMyStatsMessage(stats *MyStatsResponse, telegramUserID int64) string {
 	if stats == nil {
 		return "No stats available."
@@ -1009,6 +1073,10 @@ func telegramDisplayName(user *TelegramUser) string {
 	}
 
 	return "telegram-" + strconv.FormatInt(user.ID, 10)
+}
+
+func defaultTelegramGroupName(chatID int64) string {
+	return fmt.Sprintf("Telegram group %d", chatID)
 }
 
 func randomWisePhrase() string {

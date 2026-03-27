@@ -14,6 +14,7 @@ import (
 type TelegramGateway interface {
 	GetUpdates(ctx context.Context, offset int, timeoutSeconds int) ([]Update, error)
 	SendMessage(ctx context.Context, chatID int64, text string, replyToMessageID int) error
+	GetChatTitle(ctx context.Context, chatID int64) (string, error)
 	DeepLink(ctx context.Context) string
 	SyncCommands(ctx context.Context) error
 }
@@ -123,6 +124,35 @@ func (c *TelegramClient) SendMessage(ctx context.Context, chatID int64, text str
 	return c.do(req, &response)
 }
 
+func (c *TelegramClient) GetChatTitle(ctx context.Context, chatID int64) (string, error) {
+	payload := map[string]any{
+		"chat_id": chatID,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/getChat",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	var response telegramAPIResponse[Chat]
+	if err := c.do(req, &response); err != nil {
+		return "", err
+	}
+
+	return response.Result.Title, nil
+}
+
 func (c *TelegramClient) DeepLink(ctx context.Context) string {
 	if c.botUsername == "" {
 		user, err := c.getMe(ctx)
@@ -212,6 +242,10 @@ func (c *TelegramClient) do(req *http.Request, target interface{}) error {
 			return fmt.Errorf("telegram api error: %s", typed.Description)
 		}
 	case *telegramAPIResponse[bool]:
+		if !typed.OK {
+			return fmt.Errorf("telegram api error: %s", typed.Description)
+		}
+	case *telegramAPIResponse[Chat]:
 		if !typed.OK {
 			return fmt.Errorf("telegram api error: %s", typed.Description)
 		}

@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
     platform,
     platform_user_id,
     display_name,
+    telegram_group_chat_id,
+    telegram_group_name,
     predicted_low_price,
     predicted_high_price,
     sats_amount,
@@ -128,12 +130,14 @@ export async function POST(request: NextRequest) {
 
       const predictionResult = await client.query<{ id: number }>(
         `INSERT INTO predictions
-           (round_id, user_id, predicted_low_price, predicted_high_price, predicted_price, sats_amount, lightning_invoice)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+           (round_id, user_id, telegram_group_chat_id, telegram_group_name, predicted_low_price, predicted_high_price, predicted_price, sats_amount, lightning_invoice)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id`,
         [
           roundId,
           userId,
+          telegram_group_chat_id ?? null,
+          telegram_group_name ?? null,
           predicted_low_price,
           predicted_high_price,
           predicted_price,

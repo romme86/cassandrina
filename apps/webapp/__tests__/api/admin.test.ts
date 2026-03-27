@@ -16,6 +16,7 @@ import { query } from "@/lib/db";
 import { getRedis } from "@/lib/redis";
 import { POST as startPrediction } from "@/app/api/admin/predictions/start/route";
 import { GET as getBalanceStats } from "@/app/api/admin/stats/balance/route";
+import { GET as getGroupStats } from "@/app/api/admin/stats/groups/route";
 import { GET as getUserStats } from "@/app/api/admin/stats/users/route";
 import { GET as getInternalUserStats } from "@/app/api/internal/users/stats/route";
 
@@ -239,6 +240,34 @@ describe("admin API routes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body[0].display_name).toBe("Alice");
+    expect(body[0].balance_sats).toBe(1234);
+  });
+
+  test("GET /api/admin/stats/groups returns aggregated group stats", async () => {
+    mockQuery.mockResolvedValueOnce([
+      {
+        group_name: "Friends of BTC",
+        telegram_group_chat_id: "-100123",
+        average_accuracy: 61.5,
+        average_congruency: 52.2,
+        balance_sats: 1234,
+        profit_sats: 234,
+        total_predictions: 7,
+        participant_count: 3,
+      },
+    ]);
+
+    const req = new NextRequest("http://localhost/api/admin/stats/groups", {
+      headers: {
+        "x-cassandrina-admin-secret": "super-secret",
+      },
+    });
+
+    const res = await getGroupStats(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body[0].group_name).toBe("Friends of BTC");
+    expect(body[0].participant_count).toBe(3);
     expect(body[0].balance_sats).toBe(1234);
   });
 

@@ -6,6 +6,8 @@ export const CreatePredictionSchema = z.object({
   platform: z.string().min(1),
   platform_user_id: z.string().min(1),
   display_name: z.string().min(1).optional(),
+  telegram_group_chat_id: z.string().min(1).optional(),
+  telegram_group_name: z.string().min(1).optional(),
   predicted_low_price: z.number().positive(),
   predicted_high_price: z.number().positive(),
   sats_amount: z

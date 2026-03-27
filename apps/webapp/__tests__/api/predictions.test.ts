@@ -124,6 +124,8 @@ describe("POST /api/predictions", () => {
   });
 
   test("returns 201 with lightning invoice on success", async () => {
+    let insertArgs: unknown[] | undefined;
+
     mockQuery
       .mockResolvedValueOnce([{ id: 1 }])    // user found
       .mockResolvedValueOnce([{ id: 42 }])   // open round
@@ -136,10 +138,28 @@ describe("POST /api/predictions", () => {
       expiresAt: "2026-03-20T10:00:00.000Z",
     });
 
+    mockWithTransaction.mockImplementationOnce(async (callback) => {
+      const client = {
+        query: jest.fn().mockImplementation(async (sql: string, params?: unknown[]) => {
+          if (sql.includes("SELECT id FROM predictions")) {
+            return { rows: [] };
+          }
+          if (sql.includes("INSERT INTO predictions")) {
+            insertArgs = params;
+            return { rows: [{ id: 99 }] };
+          }
+          return { rows: [] };
+        }),
+      };
+      return callback(client as never);
+    });
+
     const req = makeRequest({
       platform: "telegram",
       platform_user_id: "2002",
       display_name: "alice",
+      telegram_group_chat_id: "-100123",
+      telegram_group_name: "Friends of BTC",
       predicted_low_price: 94000,
       predicted_high_price: 96000,
       sats_amount: 500,
@@ -150,6 +170,8 @@ describe("POST /api/predictions", () => {
     expect(body.lightning_invoice).toBe("lnbc500n1...");
     expect(body.prediction_id).toBe(99);
     expect(mockWithTransaction).toHaveBeenCalled();
+    expect(insertArgs?.[2]).toBe("-100123");
+    expect(insertArgs?.[3]).toBe("Friends of BTC");
   });
 
   test("returns 503 when lightning invoice creation fails", async () => {
