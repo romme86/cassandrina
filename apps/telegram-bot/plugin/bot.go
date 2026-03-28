@@ -120,7 +120,7 @@ func (b *Bot) handleGroupMessage(ctx context.Context, msg *Message) {
 		_ = b.telegram.SendMessage(
 			ctx,
 			msg.Chat.ID,
-			"Send your prediction to Cassandrina in a private chat. Use: <lowest BTC price> <highest BTC price> <sats>.",
+			groupPrivateChatPrompt(b.telegram.DeepLink(ctx)),
 			msg.MessageID,
 		)
 	}
@@ -256,10 +256,18 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 
 	switch command {
 	case "/start":
-		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, startMessage(b.isAdminUser(msg.From.ID)), replyIDForChat(msg))
+		reply := startMessage(b.isAdminUser(msg.From.ID))
+		if msg.Chat.Type != "private" {
+			reply = groupPrivateChatPrompt(b.telegram.DeepLink(ctx))
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
 		return true
 	case "/help":
-		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, helpMessage(b.isAdminUser(msg.From.ID)), replyIDForChat(msg))
+		reply := helpMessage(b.isAdminUser(msg.From.ID))
+		if msg.Chat.Type != "private" {
+			reply = groupHelpMessage(b.telegram.DeepLink(ctx))
+		}
+		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
 		return true
 	case "/health":
 		health, err := b.api.GetHealth()
@@ -389,6 +397,7 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 			closeAt,
 			intOrDefault(minSats, b.cfg.MinSats),
 			intOrDefault(maxSats, b.cfg.MaxSats),
+			b.telegram.DeepLink(ctx),
 		)
 		_ = b.telegram.SendMessage(ctx, b.cfg.GroupChatID, msg, 0)
 
@@ -687,7 +696,7 @@ func formatPredictionStatusMessages(status *PredictionStatusResponse) []string {
 	return chunks
 }
 
-func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone, closeAt string, minSats int, maxSats int) string {
+func formatPredictionOpenMessage(questionDate string, targetHour int, targetTimeZone, closeAt string, minSats int, maxSats int, startLink string) string {
 	dateLabel := "today"
 	if strings.TrimSpace(questionDate) != "" {
 		dateLabel = "on " + questionDate
@@ -696,7 +705,7 @@ func formatPredictionOpenMessage(questionDate string, targetHour int, targetTime
 	if strings.TrimSpace(closeAt) != "" {
 		closeLabel = formatLocalTime(closeAt)
 	}
-	return fmt.Sprintf(
+	message := fmt.Sprintf(
 		"Prediction window is open\n\nCassandrina is collecting private BTC predictions for %02d:00 %s %s.\nWindow closes at: %s\n\nSend Cassandrina a private message in this format:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\nExample: 82000 84500 3000\n\nMin: %d sats | Max: %d sats",
 		targetHour,
 		timeZoneLabel(targetTimeZone),
@@ -705,6 +714,10 @@ func formatPredictionOpenMessage(questionDate string, targetHour int, targetTime
 		minSats,
 		maxSats,
 	)
+	if strings.TrimSpace(startLink) == "" {
+		return message
+	}
+	return message + "\n\nOpen a private chat: " + strings.TrimSpace(startLink)
 }
 
 func formatPredictionCloseMessage(closeReason string, participants []map[string]interface{}, tradeSummary map[string]interface{}) string {
@@ -1077,6 +1090,22 @@ func telegramDisplayName(user *TelegramUser) string {
 
 func defaultTelegramGroupName(chatID int64) string {
 	return fmt.Sprintf("Telegram group %d", chatID)
+}
+
+func groupPrivateChatPrompt(startLink string) string {
+	message := "Send your prediction to Cassandrina in a private chat. Use:\n<lowest BTC price> <highest BTC price> <sats>"
+	if strings.TrimSpace(startLink) == "" {
+		return message
+	}
+	return message + "\n\nOpen private chat: " + strings.TrimSpace(startLink)
+}
+
+func groupHelpMessage(startLink string) string {
+	message := "Cassandrina collects predictions in private chat, not in the group.\n\nSend:\n<lowest BTC price> <highest BTC price> <sats>\nExample: 82000 84500 3000"
+	if strings.TrimSpace(startLink) == "" {
+		return message
+	}
+	return message + "\n\nOpen private chat: " + strings.TrimSpace(startLink)
 }
 
 func randomWisePhrase() string {

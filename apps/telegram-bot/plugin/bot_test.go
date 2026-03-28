@@ -114,7 +114,7 @@ func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 }
 
 func TestHandleGroupMessageRedirectsPredictionAttemptsToPrivateChat(t *testing.T) {
-	gateway := &fakeTelegramGateway{}
+	gateway := &fakeTelegramGateway{deepLinkURL: "https://t.me/cassandrina_bot"}
 	bot := &Bot{
 		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
 		telegram:        gateway,
@@ -139,6 +139,58 @@ func TestHandleGroupMessageRedirectsPredictionAttemptsToPrivateChat(t *testing.T
 	}
 	if !contains(gateway.messages[0].text, "private chat") {
 		t.Fatalf("expected redirect to private chat, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "https://t.me/cassandrina_bot") {
+		t.Fatalf("expected private chat link in redirect, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestGroupStartCommandIncludesPrivateChatLink(t *testing.T) {
+	gateway := &fakeTelegramGateway{deepLinkURL: "https://t.me/cassandrina_bot"}
+	bot := &Bot{
+		cfg:             &Config{GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleGroupMessage(context.Background(), &Message{
+		MessageID: 88,
+		Text:      "/start",
+		Chat:      Chat{ID: -42, Type: "group"},
+		From:      &TelegramUser{ID: 123, Username: "alice"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 group reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Open private chat") {
+		t.Fatalf("expected private chat prompt, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "https://t.me/cassandrina_bot") {
+		t.Fatalf("expected private chat link, got %q", gateway.messages[0].text)
+	}
+}
+
+func TestHandleRedisEventPredictionOpenIncludesPrivateChatLink(t *testing.T) {
+	gateway := &fakeTelegramGateway{deepLinkURL: "https://t.me/cassandrina_bot"}
+	bot := &Bot{
+		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleRedisEvent("cassandrina:prediction:open", map[string]interface{}{
+		"target_hour":     float64(8),
+		"target_timezone": "Europe/Rome",
+		"min_sats":        float64(100),
+		"max_sats":        float64(5000),
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 group message, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Open a private chat: https://t.me/cassandrina_bot") {
+		t.Fatalf("expected prediction open link, got %q", gateway.messages[0].text)
 	}
 }
 
