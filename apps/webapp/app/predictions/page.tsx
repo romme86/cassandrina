@@ -162,7 +162,7 @@ export default async function PredictionsPage() {
           </div>
           <h1 className="text-4xl font-bold text-white">Prediction Windows</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Submit and settle daily BTC target rounds. Strategy and confidence are derived from consensus.
+            Submit and settle daily BTC target rounds. Strategy and confidence are derived from interpreted user ranges with minority Polymarket modulation.
           </p>
         </div>
         <Card className="border-white/5 bg-card/95">

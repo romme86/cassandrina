@@ -33,6 +33,15 @@ export const BotConfigSchema = z.object({
   max_sats: z.number().int().min(1).optional(),
   weekly_vote_day: z.number().int().min(0).max(6).optional(),
   weekly_vote_hour: z.number().int().min(0).max(23).optional(),
+  pm_conf_weight_min_pct: z.number().min(0).max(100).optional(),
+  pm_conf_weight_max_pct: z.number().min(0).max(100).optional(),
+  pm_range_weight_min_pct: z.number().min(0).max(100).optional(),
+  pm_range_weight_max_pct: z.number().min(0).max(100).optional(),
+  pm_trade_window_minutes: z.number().int().min(1).max(1440).optional(),
+  pm_market_max_distance_pct: z.number().min(0).max(100).optional(),
+  grid_min_width_pct: z.number().min(0).max(100).optional(),
+  grid_extra_orders_width_pct: z.number().min(0).max(100).optional(),
+  grid_balance_ratio_max: z.number().min(1).max(10).optional(),
   trading_enabled: z.boolean().optional(),
 });
 

@@ -23,15 +23,20 @@ from datetime import datetime, time as dt_time, timedelta, timezone
 from enum import Enum
 from zoneinfo import ZoneInfo
 
+from cassandrina.decision_engine import (
+    DecisionConfig,
+    build_strategy_decision,
+    build_user_market_view,
+    override_strategy,
+)
 from cassandrina.profit import distribute_profit
 from cassandrina.scoring import (
-    compute_confidence,
     compute_congruency,
     is_prediction_correct,
     update_accuracy,
     update_congruency,
 )
-from cassandrina.strategy import Strategy, get_direction, get_leverage, select_strategy
+from cassandrina.strategy import Strategy
 from cassandrina.trade_executor import _sats_to_btc
 
 logger = logging.getLogger(__name__)
@@ -195,7 +200,7 @@ class PredictionScheduler:
         self._publish(
             "weekly:vote",
             {
-                "options": ["A (Aggressive)", "B (Moderate)", "C (Grid)", "D (Safe)", "E (Conservative)"],
+                "options": ["A (Aggressive)", "B (Strong)", "C (Grid)", "D (Directional)", "E (Directional)"],
                 "closes_in_hours": 24,
             },
         )
@@ -691,25 +696,39 @@ class PredictionScheduler:
             return None
 
         bot_config = self._safe_get_bot_config()
-        max_sats = int(bot_config.get("max_sats", 5000))
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
-        target_low_price, target_high_price, target_price = self._compute_target_range(participants)
-        polymarket_probability = 0.5
+        current_price = self._market_data.get_btc_price()
+        round_record = self._db.get_round(round_id)
+        target_date = (
+            round_record["question_date"]
+            if round_record and round_record.get("question_date") is not None
+            else datetime.now(self._scheduler_tz).date()
+        )
+        decision_config = DecisionConfig.from_mapping(bot_config)
+        user_view = build_user_market_view(
+            participants,
+            current_price=current_price,
+            config=decision_config,
+        )
+        polymarket_signal = None
         if self._polymarket:
             try:
-                polymarket_probability = self._polymarket.fetch_btc_probability(
-                    datetime.now(timezone.utc).date()
+                polymarket_signal = self._polymarket.build_market_signal(
+                    target_date=target_date,
+                    target_price=user_view.high if user_view.direction == "long" else user_view.low,
+                    direction=user_view.direction,
+                    lookback_minutes=decision_config.pm_trade_window_minutes,
+                    max_distance_pct=decision_config.pm_market_max_distance_pct,
                 )
             except Exception:
-                logger.exception("Failed to fetch Polymarket probability")
-        avg_accuracy = sum(float(p["accuracy"]) for p in participants) / len(participants)
-        avg_congruency = sum(float(p["congruency"]) for p in participants) / len(participants)
-        confidence_score = compute_confidence(
-            avg_accuracy=avg_accuracy,
-            avg_congruency=avg_congruency,
-            polymarket_probability=polymarket_probability,
+                logger.exception("Failed to build Polymarket signal")
+        decision = build_strategy_decision(
+            user_view,
+            current_price=current_price,
+            config=decision_config,
+            polymarket_signal=polymarket_signal,
         )
-        strategy = select_strategy(confidence_score)
+        strategy = decision.strategy
 
         # Override with weekly vote winner if available
         local_now = datetime.now(self._scheduler_tz)
@@ -718,29 +737,34 @@ class PredictionScheduler:
             vote_winner = self._db.get_winning_vote_strategy(week_start)
             if vote_winner:
                 strategy = Strategy(vote_winner)
+                decision = override_strategy(decision, strategy)
                 logger.info("Strategy overridden by weekly vote: %s", strategy.value)
         except Exception:
             logger.exception("Failed to check weekly vote results")
-        current_price = self._market_data.get_btc_price()
-        direction = get_direction(current_price, target_price)
+        direction = decision.direction
         sats_deployed = sum(int(p["sats_amount"]) for p in participants)
         self._db.update_round_analysis(
             round_id,
-            btc_target_low_price=target_low_price,
-            btc_target_high_price=target_high_price,
-            polymarket_probability=polymarket_probability,
-            btc_target_price=target_price,
-            confidence_score=confidence_score,
+            btc_target_low_price=decision.adjusted_low,
+            btc_target_high_price=decision.adjusted_high,
+            polymarket_probability=(
+                polymarket_signal.aligned_probability
+                if polymarket_signal and polymarket_signal.available
+                else 0.5
+            ),
+            btc_target_price=decision.adjusted_mid,
+            confidence_score=decision.confidence_score,
             strategy_used=strategy.value,
+            user_confidence_score=decision.user_confidence_score,
+            base_direction=decision.base_direction,
+            polymarket_influence_pct=decision.polymarket_influence_pct,
+            decision_metrics=decision.decision_metrics,
         )
 
         result = {"type": "dry_run", "order": {"orderId": f"dry-run-{round_id}"}}
         if trading_enabled and self._trade_executor:
             result = self._trade_executor.execute(
-                strategy=strategy,
-                direction=direction,
-                current_price=current_price,
-                target_price=target_price,
+                decision=decision,
                 sats_deployed=sats_deployed,
             )
 
@@ -753,10 +777,11 @@ class PredictionScheduler:
             strategy=strategy.value,
             direction=direction,
             entry_price=current_price,
-            target_price=target_price,
-            leverage=get_leverage(strategy),
+            target_price=decision.adjusted_mid,
+            leverage=decision.leverage,
             sats_deployed=sats_deployed,
             binance_order_id=str(order_id) if order_id is not None else None,
+            decision_snapshot=decision.snapshot(),
         )
         self._publish(
             "trade:opened",
@@ -766,10 +791,13 @@ class PredictionScheduler:
                 "strategy": strategy.value,
                 "direction": direction,
                 "entry_price": current_price,
-                "target_low_price": target_low_price,
-                "target_high_price": target_high_price,
-                "target_price": target_price,
-                "confidence_score": confidence_score,
+                "target_low_price": decision.adjusted_low,
+                "target_high_price": decision.adjusted_high,
+                "target_price": decision.adjusted_mid,
+                "user_confidence_score": decision.user_confidence_score,
+                "confidence_score": decision.confidence_score,
+                "base_direction": decision.base_direction,
+                "polymarket_influence_pct": decision.polymarket_influence_pct,
                 "sats_deployed": sats_deployed,
                 "dry_run": not trading_enabled,
             },
@@ -779,10 +807,13 @@ class PredictionScheduler:
             "strategy": strategy.value,
             "direction": direction,
             "entry_price": current_price,
-            "target_low_price": target_low_price,
-            "target_high_price": target_high_price,
-            "target_price": target_price,
-            "confidence_score": confidence_score,
+            "target_low_price": decision.adjusted_low,
+            "target_high_price": decision.adjusted_high,
+            "target_price": decision.adjusted_mid,
+            "user_confidence_score": decision.user_confidence_score,
+            "confidence_score": decision.confidence_score,
+            "base_direction": decision.base_direction,
+            "polymarket_influence_pct": decision.polymarket_influence_pct,
             "sats_deployed": sats_deployed,
             "dry_run": not trading_enabled,
         }

@@ -131,6 +131,18 @@ class TestPredictionRoundsColumns:
     def test_has_btc_target_price(self, cur):
         assert column_exists(cur, "prediction_rounds", "btc_target_price")
 
+    def test_has_user_confidence_score(self, cur):
+        assert column_exists(cur, "prediction_rounds", "user_confidence_score")
+
+    def test_has_base_direction(self, cur):
+        assert column_exists(cur, "prediction_rounds", "base_direction")
+
+    def test_has_polymarket_influence_pct(self, cur):
+        assert column_exists(cur, "prediction_rounds", "polymarket_influence_pct")
+
+    def test_has_decision_metrics(self, cur):
+        assert column_exists(cur, "prediction_rounds", "decision_metrics")
+
 
 # ── Predictions columns & hypertable ────────────────────────
 
@@ -166,6 +178,9 @@ class TestTradesTable:
     def test_has_pnl_sats(self, cur):
         assert column_exists(cur, "trades", "pnl_sats")
 
+    def test_has_decision_snapshot(self, cur):
+        assert column_exists(cur, "trades", "decision_snapshot")
+
     def test_is_hypertable(self, cur):
         assert is_hypertable(cur, "trades")
 
@@ -193,3 +208,39 @@ class TestBotConfigDefaults:
     def test_default_max_sats(self, cur):
         cur.execute("SELECT value FROM bot_config WHERE key = 'max_sats'")
         assert cur.fetchone()["value"] == "5000"
+
+    def test_default_pm_conf_weight_min_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_conf_weight_min_pct'")
+        assert cur.fetchone()["value"] == "10"
+
+    def test_default_pm_conf_weight_max_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_conf_weight_max_pct'")
+        assert cur.fetchone()["value"] == "30"
+
+    def test_default_pm_range_weight_min_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_range_weight_min_pct'")
+        assert cur.fetchone()["value"] == "3"
+
+    def test_default_pm_range_weight_max_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_range_weight_max_pct'")
+        assert cur.fetchone()["value"] == "8"
+
+    def test_default_pm_trade_window_minutes(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_trade_window_minutes'")
+        assert cur.fetchone()["value"] == "60"
+
+    def test_default_pm_market_max_distance_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_market_max_distance_pct'")
+        assert cur.fetchone()["value"] == "5"
+
+    def test_default_grid_min_width_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'grid_min_width_pct'")
+        assert cur.fetchone()["value"] == "1.5"
+
+    def test_default_grid_extra_orders_width_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'grid_extra_orders_width_pct'")
+        assert cur.fetchone()["value"] == "3"
+
+    def test_default_grid_balance_ratio_max(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'grid_balance_ratio_max'")
+        assert cur.fetchone()["value"] == "1.25"

@@ -113,6 +113,26 @@ class BinanceClientWrapper:
             price=tp_price,
         )
 
+    def set_futures_take_profit(
+        self,
+        symbol: str,
+        side: str,          # "long" | "short"
+        quantity: float,
+        tp_price: float,
+    ) -> dict:
+        """Place a TAKE_PROFIT_MARKET close order at tp_price (futures)."""
+        close_side = "SELL" if side == "long" else "BUY"
+        return self._safe_call(
+            self._client.futures_create_order,
+            symbol=symbol,
+            side=close_side,
+            type="TAKE_PROFIT_MARKET",
+            stopPrice=round(tp_price, 2),
+            quantity=quantity,
+            reduceOnly=True,
+            closePosition=False,
+        )
+
     # ── Stop Loss ──────────────────────────────────────────────
 
     def set_stop_loss(
@@ -131,6 +151,7 @@ class BinanceClientWrapper:
             type="STOP_MARKET",
             stopPrice=round(sl_price, 2),
             quantity=quantity,
+            reduceOnly=True,
             closePosition=False,
         )
 

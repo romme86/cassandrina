@@ -25,7 +25,11 @@ export interface PredictionRound {
   btc_actual_high_price: number | null;
   btc_actual_price: number | null;
   confidence_score: number | null;
+  user_confidence_score?: number | null;
   strategy_used: "A" | "B" | "C" | "D" | "E" | null;
+  base_direction?: "long" | "short" | null;
+  polymarket_influence_pct?: number | null;
+  decision_metrics?: Record<string, unknown> | null;
 }
 
 export interface Prediction {
@@ -55,6 +59,7 @@ export interface Trade {
   sats_deployed: number;
   status: "open" | "closed" | "liquidated";
   pnl_sats: number | null;
+  decision_snapshot?: Record<string, unknown> | null;
   opened_at: string;
   closed_at: string | null;
 }

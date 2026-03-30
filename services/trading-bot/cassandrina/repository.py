@@ -11,7 +11,7 @@ import threading
 from typing import Iterator
 
 from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 
 
 class PostgresRepository:
@@ -124,6 +124,20 @@ class PostgresRepository:
             row = cur.fetchone()
             return dict(row) if row else None
 
+    def get_round(self, round_id: int) -> dict | None:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM prediction_rounds
+                WHERE id = %s
+                LIMIT 1
+                """,
+                (round_id,),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
     def get_rounds_for_settlement(self, target_date: date | None = None) -> list[dict]:
         target_date = target_date or datetime.now(timezone.utc).date()
         with self._cursor() as cur:
@@ -191,6 +205,10 @@ class PostgresRepository:
         btc_target_price: float,
         confidence_score: float,
         strategy_used: str,
+        user_confidence_score: float | None = None,
+        base_direction: str | None = None,
+        polymarket_influence_pct: float | None = None,
+        decision_metrics: dict | None = None,
     ) -> None:
         with self._cursor(commit=True) as cur:
             cur.execute(
@@ -201,7 +219,11 @@ class PostgresRepository:
                     polymarket_probability = %s,
                     btc_target_price = %s,
                     confidence_score = %s,
-                    strategy_used = %s
+                    strategy_used = %s,
+                    user_confidence_score = %s,
+                    base_direction = %s,
+                    polymarket_influence_pct = %s,
+                    decision_metrics = %s
                 WHERE id = %s
                 """,
                 (
@@ -211,6 +233,10 @@ class PostgresRepository:
                     btc_target_price,
                     confidence_score,
                     strategy_used,
+                    user_confidence_score,
+                    base_direction,
+                    polymarket_influence_pct,
+                    Json(decision_metrics) if decision_metrics is not None else None,
                     round_id,
                 ),
             )
@@ -359,14 +385,15 @@ class PostgresRepository:
         leverage: int,
         sats_deployed: int,
         binance_order_id: str | None = None,
+        decision_snapshot: dict | None = None,
     ) -> dict:
         with self._cursor(commit=True) as cur:
             cur.execute(
                 """
                 INSERT INTO trades
-                    (round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, binance_order_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, status, binance_order_id, opened_at
+                    (round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, binance_order_id, decision_snapshot)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, status, binance_order_id, decision_snapshot, opened_at
                 """,
                 (
                     round_id,
@@ -377,6 +404,7 @@ class PostgresRepository:
                     leverage,
                     sats_deployed,
                     binance_order_id,
+                    Json(decision_snapshot) if decision_snapshot is not None else None,
                 ),
             )
             return dict(cur.fetchone())

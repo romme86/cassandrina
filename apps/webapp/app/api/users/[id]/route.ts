@@ -43,11 +43,16 @@ export async function GET(
     btc_target_price: number | null;
     round_status: string;
     confidence_score: number | null;
+    user_confidence_score: number | null;
     strategy_used: string | null;
+    base_direction: "long" | "short" | null;
+    polymarket_influence_pct: number | null;
+    decision_metrics: Record<string, unknown> | null;
   }>(
     `SELECT p.id, p.predicted_price, p.sats_amount, p.paid, p.created_at,
             r.question_date, r.btc_actual_price, r.btc_target_price,
-            r.status AS round_status, r.confidence_score, r.strategy_used
+            r.status AS round_status, r.confidence_score, r.user_confidence_score,
+            r.strategy_used, r.base_direction, r.polymarket_influence_pct, r.decision_metrics
      FROM predictions p
      JOIN prediction_rounds r ON r.id = p.round_id
      WHERE p.user_id = $1

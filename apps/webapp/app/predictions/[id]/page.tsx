@@ -105,6 +105,15 @@ export default async function RoundDetailPage({ params }: { params: { id: string
     round.polymarket_probability != null
       ? (round.polymarket_probability * 100).toFixed(1)
       : "—";
+  const userConfidence =
+    round.user_confidence_score != null
+      ? `${round.user_confidence_score.toFixed(1)}%`
+      : "—";
+  const polymarketInfluence =
+    round.polymarket_influence_pct != null
+      ? `${round.polymarket_influence_pct.toFixed(1)}%`
+      : "0.0%";
+  const baseDirection = round.base_direction?.toUpperCase() ?? "—";
 
   // Paid vs pending stats
   const paidCount = predictions.filter((p) => p.paid).length;
@@ -194,7 +203,13 @@ export default async function RoundDetailPage({ params }: { params: { id: string
                   {round.confidence_score.toFixed(1)}%
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  (Accuracy + Congruency + Polymarket {polyPct}%) / 3
+                  User-led confidence modulated by Polymarket
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  User {userConfidence} · Polymarket influence {polymarketInfluence} · Base direction {baseDirection}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Matched Polymarket probability: {polyPct}
                 </p>
               </div>
             ) : (

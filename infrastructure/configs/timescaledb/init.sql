@@ -37,7 +37,11 @@ CREATE TABLE IF NOT EXISTS prediction_rounds (
     btc_actual_high_price   FLOAT,
     btc_actual_price        FLOAT,
     confidence_score        FLOAT,
-    strategy_used           CHAR(1) CHECK (strategy_used IN ('A', 'B', 'C', 'D', 'E'))
+    strategy_used           CHAR(1) CHECK (strategy_used IN ('A', 'B', 'C', 'D', 'E')),
+    user_confidence_score   FLOAT,
+    base_direction          TEXT CHECK (base_direction IN ('long', 'short')),
+    polymarket_influence_pct FLOAT,
+    decision_metrics        JSONB
 );
 
 -- ============================================================
@@ -103,6 +107,7 @@ CREATE TABLE IF NOT EXISTS trades (
     status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'liquidated')),
     pnl_sats        INT,
     binance_order_id TEXT,
+    decision_snapshot JSONB,
     opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     closed_at       TIMESTAMPTZ
 );
@@ -142,6 +147,15 @@ INSERT INTO bot_config (key, value) VALUES
     ('weekly_vote_day', '6'),
     ('weekly_vote_hour', '20'),
     ('report_hours_before_target', '8'),
+    ('pm_conf_weight_min_pct', '10'),
+    ('pm_conf_weight_max_pct', '30'),
+    ('pm_range_weight_min_pct', '3'),
+    ('pm_range_weight_max_pct', '8'),
+    ('pm_trade_window_minutes', '60'),
+    ('pm_market_max_distance_pct', '5'),
+    ('grid_min_width_pct', '1.5'),
+    ('grid_extra_orders_width_pct', '3'),
+    ('grid_balance_ratio_max', '1.25'),
     ('trading_enabled', 'true'),
     ('bot_desired_state', 'running'),
     ('bot_actual_state', 'offline'),

@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 
 from cassandrina.binance_client import BinanceClientWrapper, BinanceError
-from cassandrina.strategy import Strategy, get_leverage, get_grid_midpoint, TAKE_PROFIT_PCT, STOP_LOSS_PCT
+from cassandrina.decision_engine import StrategyDecision
+from cassandrina.strategy import Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,11 @@ class TradeExecutor:
 
     def execute(
         self,
-        strategy: Strategy,
-        direction: str,
-        current_price: float,
-        target_price: float,
+        decision: StrategyDecision,
         sats_deployed: int,
     ) -> dict:
         """
-        Execute the appropriate Binance operation for *strategy*.
+        Execute the appropriate Binance operation for *decision*.
 
         Returns a dict with the opened order info and metadata.
         """
@@ -67,17 +65,25 @@ class TradeExecutor:
             return {
                 "type": "skipped",
                 "reason": "pool too small for minimum lot size",
-                "strategy": strategy.value,
+                "strategy": decision.strategy.value,
             }
 
-        if strategy in (Strategy.A, Strategy.B):
-            return self._execute_futures(strategy, direction, quantity, current_price)
+        if decision.strategy == Strategy.C:
+            return self._execute_grid(
+                lower_price=decision.grid_lower_price or decision.interpreted_low,
+                upper_price=decision.grid_upper_price or decision.interpreted_high,
+                quantity=quantity,
+                grid_order_count=decision.grid_order_count or 5,
+            )
 
-        if strategy == Strategy.C:
-            return self._execute_grid(current_price, target_price, quantity)
-
-        # Strategy D or E — spot with TP
-        return self._execute_spot(strategy, direction, current_price, quantity)
+        return self._execute_futures(
+            strategy=decision.strategy,
+            direction=decision.direction,
+            quantity=quantity,
+            leverage=decision.leverage,
+            tp_price=decision.take_profit_price,
+            sl_price=decision.stop_loss_price,
+        )
 
     def close_position(
         self,
@@ -86,7 +92,7 @@ class TradeExecutor:
         quantity_btc: float,
     ) -> dict:
         """Close an open position at settlement time."""
-        if strategy in (Strategy.A, Strategy.B):
+        if strategy != Strategy.C:
             self._client.cancel_all_futures_orders(symbol=self.symbol)
             order = self._client.close_futures_position(
                 symbol=self.symbol,
@@ -95,26 +101,19 @@ class TradeExecutor:
             )
             return {"type": "futures_close", "order": order}
 
-        if strategy == Strategy.C:
-            self._client.cancel_all_orders(symbol=self.symbol)
-            return {"type": "grid_cancelled"}
-
-        # Spot D/E — sell remaining position
         self._client.cancel_all_orders(symbol=self.symbol)
-        if direction == "long":
-            order = self._client.spot_sell(symbol=self.symbol, quantity=quantity_btc)
-        else:
-            order = self._client.spot_buy(symbol=self.symbol, quantity=quantity_btc)
-        return {"type": "spot_close", "order": order}
+        return {"type": "grid_cancelled"}
 
     def _execute_futures(
         self,
+        *,
         strategy: Strategy,
         direction: str,
         quantity: float,
-        current_price: float,
+        leverage: int,
+        tp_price: float | None,
+        sl_price: float | None,
     ) -> dict:
-        leverage = get_leverage(strategy)
         order = self._client.futures_order(
             symbol=self.symbol,
             side=direction,
@@ -122,13 +121,17 @@ class TradeExecutor:
             leverage=leverage,
         )
 
+        tp_order = None
+        if tp_price is not None:
+            tp_order = self._client.set_futures_take_profit(
+                symbol=self.symbol,
+                side=direction,
+                quantity=quantity,
+                tp_price=tp_price,
+            )
+
         sl_order = None
-        sl_pct = STOP_LOSS_PCT[strategy]
-        if sl_pct > 0:
-            if direction == "long":
-                sl_price = current_price * (1 - sl_pct / 100)
-            else:
-                sl_price = current_price * (1 + sl_pct / 100)
+        if sl_price is not None:
             sl_order = self._client.set_stop_loss(
                 symbol=self.symbol,
                 side=direction,
@@ -139,78 +142,27 @@ class TradeExecutor:
         return {
             "type": "futures",
             "order": order,
+            "tp_order": tp_order,
             "sl_order": sl_order,
             "strategy": strategy.value,
         }
 
     def _execute_grid(
         self,
-        current_price: float,
-        target_price: float,
+        *,
+        lower_price: float,
+        upper_price: float,
         quantity: float,
+        grid_order_count: int,
     ) -> dict:
-        midpoint = get_grid_midpoint(current_price, target_price)
-        lower = min(current_price, midpoint)
-        upper = max(current_price, midpoint)
         orders = self._client.place_grid_orders(
             symbol=self.symbol,
-            lower_price=lower,
-            upper_price=upper,
-            num_grids=5,
-            quantity_per_grid=round(quantity / 5, 3),
+            lower_price=lower_price,
+            upper_price=upper_price,
+            num_grids=grid_order_count,
+            quantity_per_grid=round(quantity / grid_order_count, 3),
         )
         return {"type": "grid", "orders": orders, "strategy": Strategy.C.value}
-
-    def _execute_spot(
-        self,
-        strategy: Strategy,
-        direction: str,
-        current_price: float,
-        quantity: float,
-    ) -> dict:
-        if direction == "long":
-            order = self._client.spot_buy(symbol=self.symbol, quantity=quantity)
-        else:
-            order = self._client.spot_sell(symbol=self.symbol, quantity=quantity)
-
-        tp_pct = TAKE_PROFIT_PCT[strategy]
-        if tp_pct > 0 and direction == "long":
-            tp_price = current_price * (1 + tp_pct / 100)
-        elif tp_pct > 0 and direction == "short":
-            tp_price = current_price * (1 - tp_pct / 100)
-        else:
-            tp_price = None
-
-        tp_order = None
-        if tp_price is not None:
-            tp_order = self._client.set_take_profit(
-                symbol=self.symbol,
-                side=direction,
-                quantity=quantity,
-                tp_price=tp_price,
-            )
-
-        sl_order = None
-        sl_pct = STOP_LOSS_PCT[strategy]
-        if sl_pct > 0:
-            if direction == "long":
-                sl_price = current_price * (1 - sl_pct / 100)
-            else:
-                sl_price = current_price * (1 + sl_pct / 100)
-            sl_order = self._client.set_spot_stop_loss(
-                symbol=self.symbol,
-                side=direction,
-                quantity=quantity,
-                sl_price=sl_price,
-            )
-
-        return {
-            "type": "spot",
-            "order": order,
-            "tp_order": tp_order,
-            "sl_order": sl_order,
-            "strategy": strategy.value,
-        }
 
     def reconcile_position(self, trade: dict) -> dict:
         """Compare local trade record against actual Binance state.
@@ -222,7 +174,7 @@ class TradeExecutor:
         result: dict = {"trade_id": trade["id"], "strategy": strategy.value, "discrepancies": []}
 
         try:
-            if strategy in (Strategy.A, Strategy.B):
+            if strategy != Strategy.C:
                 pos = self._client.get_futures_position(self.symbol)
                 if pos is None:
                     if trade["status"] == "open":
@@ -253,7 +205,7 @@ class TradeExecutor:
     ) -> int | None:
         """Query Binance for actual realized PnL. Returns sats or None on failure."""
         try:
-            if strategy in (Strategy.A, Strategy.B):
+            if strategy != Strategy.C:
                 return self._futures_realized_pnl(opened_at_ms, current_btc_price)
             return self._spot_realized_pnl(direction, opened_at_ms, current_btc_price)
         except (BinanceError, Exception):

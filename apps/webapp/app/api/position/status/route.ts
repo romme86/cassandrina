@@ -17,6 +17,12 @@ interface TradeRow {
   pnl_sats: number | null;
   opened_at: string;
   closed_at: string | null;
+  confidence_score: number | null;
+  user_confidence_score: number | null;
+  base_direction: "long" | "short" | null;
+  polymarket_influence_pct: number | null;
+  decision_metrics: Record<string, unknown> | null;
+  decision_snapshot: Record<string, unknown> | null;
 }
 
 interface RoundRow {
@@ -59,6 +65,12 @@ function formatTradePayload(
     opened_at: trade.opened_at,
     closed_at: trade.closed_at ?? "",
     pnl_sats: trade.pnl_sats,
+    confidence_score: trade.confidence_score,
+    user_confidence_score: trade.user_confidence_score,
+    base_direction: trade.base_direction,
+    polymarket_influence_pct: trade.polymarket_influence_pct,
+    decision_metrics: trade.decision_metrics,
+    decision_snapshot: trade.decision_snapshot,
   };
 }
 
@@ -68,7 +80,9 @@ export async function GET() {
   const openTrades = await query<TradeRow>(
     `SELECT t.id AS trade_id, t.round_id, r.question_date, r.target_hour,
             t.strategy, t.direction, t.entry_price, t.target_price, t.leverage,
-            t.status, t.pnl_sats, t.opened_at, t.closed_at
+            t.status, t.pnl_sats, t.opened_at, t.closed_at, t.decision_snapshot,
+            r.confidence_score, r.user_confidence_score, r.base_direction,
+            r.polymarket_influence_pct, r.decision_metrics
      FROM trades t
      JOIN prediction_rounds r ON r.id = t.round_id
      WHERE t.status = 'open'
@@ -109,13 +123,21 @@ export async function GET() {
       opened_at: "",
       closed_at: "",
       pnl_sats: null,
+      confidence_score: null,
+      user_confidence_score: null,
+      base_direction: null,
+      polymarket_influence_pct: null,
+      decision_metrics: null,
+      decision_snapshot: null,
     });
   }
 
   const lastTrades = await query<TradeRow>(
     `SELECT t.id AS trade_id, t.round_id, r.question_date, r.target_hour,
             t.strategy, t.direction, t.entry_price, t.target_price, t.leverage,
-            t.status, t.pnl_sats, t.opened_at, t.closed_at
+            t.status, t.pnl_sats, t.opened_at, t.closed_at, t.decision_snapshot,
+            r.confidence_score, r.user_confidence_score, r.base_direction,
+            r.polymarket_influence_pct, r.decision_metrics
      FROM trades t
      JOIN prediction_rounds r ON r.id = t.round_id
      ORDER BY t.opened_at DESC, t.id DESC
@@ -176,5 +198,11 @@ export async function GET() {
     opened_at: "",
     closed_at: "",
     pnl_sats: null,
+    confidence_score: null,
+    user_confidence_score: null,
+    base_direction: null,
+    polymarket_influence_pct: null,
+    decision_metrics: null,
+    decision_snapshot: null,
   });
 }

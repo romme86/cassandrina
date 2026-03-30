@@ -16,6 +16,11 @@ interface TradeHistoryRow {
   pnl_sats: number | null;
   status: string;
   confidence_score: number | null;
+  user_confidence_score: number | null;
+  base_direction: "long" | "short" | null;
+  polymarket_influence_pct: number | null;
+  decision_metrics: Record<string, unknown> | null;
+  decision_snapshot: Record<string, unknown> | null;
 }
 
 interface HistoryStats {
@@ -62,8 +67,9 @@ export async function GET(req: NextRequest) {
       query<TradeHistoryRow>(
         `SELECT t.id, t.opened_at, t.closed_at, t.strategy, t.direction,
                 t.entry_price, t.target_price, t.leverage, t.sats_deployed,
-                t.pnl_sats, t.status,
-                r.confidence_score
+                t.pnl_sats, t.status, t.decision_snapshot,
+                r.confidence_score, r.user_confidence_score,
+                r.base_direction, r.polymarket_influence_pct, r.decision_metrics
          FROM trades t
          LEFT JOIN prediction_rounds r ON r.id = t.round_id
          WHERE ${where}
