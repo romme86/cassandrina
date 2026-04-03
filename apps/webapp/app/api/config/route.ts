@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
   await withTransaction(async (client) => {
     for (const [key, value] of updates) {
       await client.query(
-        "UPDATE bot_config SET value = $1, updated_at = NOW() WHERE key = $2",
+        `INSERT INTO bot_config (key, value, updated_at)
+         VALUES ($2, $1, NOW())
+         ON CONFLICT (key)
+         DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
         [String(value), key]
       );
     }

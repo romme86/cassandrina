@@ -11,7 +11,7 @@ import { BotLifecycleBadge } from "@/components/bot-lifecycle-badge";
 import { PinGate } from "@/components/pin-gate";
 import { withBasePath } from "@/lib/base-path";
 import type { BotControlStatus } from "@/lib/bot-control";
-import { Info, Settings, Clock, Coins, Calendar, Zap, PauseCircle, Power, RotateCcw } from "lucide-react";
+import { Info, Settings, Clock, Coins, Calendar, Zap, PauseCircle, Power, RotateCcw, Activity } from "lucide-react";
 
 interface BotConfig {
   prediction_target_hour: string;
@@ -21,6 +21,10 @@ interface BotConfig {
   max_sats: string;
   weekly_vote_day: string;
   weekly_vote_hour: string;
+  pm_conf_weight_min_pct: string;
+  pm_conf_weight_max_pct: string;
+  pm_trade_window_minutes: string;
+  pm_market_max_distance_pct: string;
   trading_enabled: string;
 }
 
@@ -32,6 +36,10 @@ const DEFAULTS: BotConfig = {
   max_sats: "10000",
   weekly_vote_day: "6",
   weekly_vote_hour: "20",
+  pm_conf_weight_min_pct: "10",
+  pm_conf_weight_max_pct: "30",
+  pm_trade_window_minutes: "60",
+  pm_market_max_distance_pct: "5",
   trading_enabled: "false",
 };
 
@@ -45,6 +53,10 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   max_sats: "Maximum satoshi amount allowed per prediction. Together with min_sats it defines the 10%-to-100% confidence scale for a prediction.",
   weekly_vote_day: "Day of the week when the weekly vote is triggered (e.g., for reinvestment decisions).",
   weekly_vote_hour: "UTC hour on the vote day when the weekly vote message is sent to the group.",
+  pm_conf_weight_min_pct: "Minimum Polymarket influence on round confidence when the crowd model is already strong.",
+  pm_conf_weight_max_pct: "Maximum Polymarket influence on round confidence when the crowd model is weaker.",
+  pm_trade_window_minutes: "How many recent minutes of Polymarket trades and price history to use in the signal.",
+  pm_market_max_distance_pct: "Maximum distance allowed between Cassandrina's target price and the matched Polymarket threshold market.",
   trading_enabled: "When enabled, the bot executes real Binance trades. When disabled, the scheduler still runs, but executions stay in dry-run mode.",
 };
 
@@ -136,8 +148,15 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
 
     const minSats = parseInt(formData.get("min_sats") as string, 10);
     const maxSats = parseInt(formData.get("max_sats") as string, 10);
+    const pmConfMin = parseFloat(formData.get("pm_conf_weight_min_pct") as string);
+    const pmConfMax = parseFloat(formData.get("pm_conf_weight_max_pct") as string);
     if (minSats >= maxSats) {
       setMessage({ type: "error", text: "min_sats must be less than max_sats" });
+      setSaving(false);
+      return;
+    }
+    if (pmConfMin > pmConfMax) {
+      setMessage({ type: "error", text: "pm_conf_weight_min_pct must be less than or equal to pm_conf_weight_max_pct" });
       setSaving(false);
       return;
     }
@@ -155,9 +174,15 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
           "max_sats",
           "weekly_vote_day",
           "weekly_vote_hour",
+          "pm_conf_weight_min_pct",
+          "pm_conf_weight_max_pct",
+          "pm_trade_window_minutes",
+          "pm_market_max_distance_pct",
         ].includes(key)
       ) {
-        payload[key] = parseInt(value as string, 10);
+        payload[key] = key.includes("pct")
+          ? parseFloat(value as string)
+          : parseInt(value as string, 10);
       }
     });
 
@@ -171,8 +196,9 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
       if (res.ok) {
         setMessage({ type: "success", text: "Configuration saved!" });
         const updated = await fetch(withBasePath("/api/config")).then((r) => r.json());
-        setCurrent(updated);
-        onSaved(updated);
+        const merged = { ...DEFAULTS, ...updated };
+        setCurrent(merged);
+        onSaved(merged);
       } else {
         const err = await res.json();
         setMessage({ type: "error", text: JSON.stringify(err.details ?? err.error) });
@@ -352,6 +378,85 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
         </TooltipField>
       </ConfigSection>
 
+      <ConfigSection title="Polymarket Modulation" icon={Activity}>
+        <div className="grid md:grid-cols-2 gap-4">
+          <TooltipField
+            label="Confidence Min %"
+            name="pm_conf_weight_min_pct"
+            tooltip={FIELD_TOOLTIPS.pm_conf_weight_min_pct}
+            currentValue={`${current.pm_conf_weight_min_pct}%`}
+          >
+            <Input
+              id="pm_conf_weight_min_pct"
+              type="number"
+              step="0.1"
+              name="pm_conf_weight_min_pct"
+              min={0}
+              max={100}
+              defaultValue={current.pm_conf_weight_min_pct}
+              key={`pm_conf_min_${current.pm_conf_weight_min_pct}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+
+          <TooltipField
+            label="Confidence Max %"
+            name="pm_conf_weight_max_pct"
+            tooltip={FIELD_TOOLTIPS.pm_conf_weight_max_pct}
+            currentValue={`${current.pm_conf_weight_max_pct}%`}
+          >
+            <Input
+              id="pm_conf_weight_max_pct"
+              type="number"
+              step="0.1"
+              name="pm_conf_weight_max_pct"
+              min={0}
+              max={100}
+              defaultValue={current.pm_conf_weight_max_pct}
+              key={`pm_conf_max_${current.pm_conf_weight_max_pct}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+
+          <TooltipField
+            label="Trade Window (min)"
+            name="pm_trade_window_minutes"
+            tooltip={FIELD_TOOLTIPS.pm_trade_window_minutes}
+            currentValue={`${current.pm_trade_window_minutes} min`}
+          >
+            <Input
+              id="pm_trade_window_minutes"
+              type="number"
+              name="pm_trade_window_minutes"
+              min={1}
+              max={1440}
+              defaultValue={current.pm_trade_window_minutes}
+              key={`pm_trade_window_${current.pm_trade_window_minutes}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+
+          <TooltipField
+            label="Market Distance %"
+            name="pm_market_max_distance_pct"
+            tooltip={FIELD_TOOLTIPS.pm_market_max_distance_pct}
+            currentValue={`${current.pm_market_max_distance_pct}%`}
+          >
+            <Input
+              id="pm_market_max_distance_pct"
+              type="number"
+              step="0.1"
+              name="pm_market_max_distance_pct"
+              min={0}
+              max={100}
+              defaultValue={current.pm_market_max_distance_pct}
+              key={`pm_market_distance_${current.pm_market_max_distance_pct}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+        </div>
+      </ConfigSection>
+
       <div className="flex gap-3 pt-2">
         <Button type="submit" disabled={saving} className="bg-primary text-black hover:bg-primary/90 font-semibold">
           {saving ? "Saving..." : "Save Configuration"}
@@ -402,7 +507,7 @@ export default function ConfigPage() {
       return false;
     }
     const cfg = await res.json();
-    setConfig(cfg);
+    setConfig({ ...DEFAULTS, ...cfg });
     return true;
   };
 
