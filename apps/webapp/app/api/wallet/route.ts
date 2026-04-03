@@ -1,47 +1,8 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { getLndBalance } from "@/lib/lnd";
 
 export const dynamic = "force-dynamic";
-
-interface LndBalance {
-  onchainConfirmed: number;
-  onchainUnconfirmed: number;
-  channelLocal: number;
-  channelRemote: number;
-}
-
-async function getLndBalance(): Promise<LndBalance> {
-  const host = process.env.LND_HOST;
-  const port = process.env.LND_PORT ?? "8080";
-  const macaroon = process.env.LND_MACAROON_HEX;
-
-  if (!host || !macaroon) {
-    return { onchainConfirmed: 0, onchainUnconfirmed: 0, channelLocal: 0, channelRemote: 0 };
-  }
-
-  try {
-    const [onchainRes, channelRes] = await Promise.all([
-      fetch(`https://${host}:${port}/v1/balance/blockchain`, {
-        headers: { "Grpc-Metadata-Macaroon": macaroon },
-      }),
-      fetch(`https://${host}:${port}/v1/balance/channels`, {
-        headers: { "Grpc-Metadata-Macaroon": macaroon },
-      }),
-    ]);
-
-    const onchain = onchainRes.ok ? await onchainRes.json() : {};
-    const channel = channelRes.ok ? await channelRes.json() : {};
-
-    return {
-      onchainConfirmed: parseInt(onchain.confirmed_balance ?? "0", 10),
-      onchainUnconfirmed: parseInt(onchain.unconfirmed_balance ?? "0", 10),
-      channelLocal: parseInt(channel.local_balance?.sat ?? "0", 10),
-      channelRemote: parseInt(channel.remote_balance?.sat ?? "0", 10),
-    };
-  } catch {
-    return { onchainConfirmed: 0, onchainUnconfirmed: 0, channelLocal: 0, channelRemote: 0 };
-  }
-}
 
 interface TxRow {
   id: string;

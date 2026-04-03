@@ -61,5 +61,8 @@ You should see the Cassandrina containers in `Up` state:
   restart.
 - This setup does not rebuild images on every boot. After code changes, deploy
   them once with `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build`.
+- After a deploy that changes the webapp schema, run
+  `docker compose --env-file .env -f infrastructure/docker-compose.yml exec -T webapp sh -lc 'cd /repo/apps/webapp && pnpm migrate:up'`
+  so the production database stays aligned with the running API code.
 - If LND runs on another host, leave `bitcoind` and `lnd` managed there and
   make sure `.env` points `LND_HOST` to the correct machine.

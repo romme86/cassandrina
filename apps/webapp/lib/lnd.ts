@@ -17,6 +17,12 @@ interface HttpResponse {
 }
 
 function getLndTlsOptions(): Pick<https.RequestOptions, "ca" | "rejectUnauthorized"> {
+  if (process.env.LND_TLS_SKIP_VERIFY === "true") {
+    return {
+      rejectUnauthorized: false,
+    };
+  }
+
   const certPath = process.env.LND_TLS_CERT_PATH;
   if (certPath) {
     return {
@@ -26,13 +32,17 @@ function getLndTlsOptions(): Pick<https.RequestOptions, "ca" | "rejectUnauthoriz
   }
 
   // Without an explicit cert path, default to verifying TLS.
-  // Set LND_TLS_SKIP_VERIFY=true to disable (e.g. self-signed local node).
   return {
-    rejectUnauthorized: process.env.LND_TLS_SKIP_VERIFY !== "true",
+    rejectUnauthorized: true,
   };
 }
 
-async function postJson(urlString: string, body: string, headers: Record<string, string>): Promise<HttpResponse> {
+async function requestJson(
+  urlString: string,
+  method: "GET" | "POST",
+  headers: Record<string, string>,
+  body?: string
+): Promise<HttpResponse> {
   const url = new URL(urlString);
 
   return await new Promise((resolve, reject) => {
@@ -42,11 +52,8 @@ async function postJson(urlString: string, body: string, headers: Record<string,
         hostname: url.hostname,
         port: url.port,
         path: `${url.pathname}${url.search}`,
-        method: "POST",
-        headers: {
-          ...headers,
-          "Content-Length": Buffer.byteLength(body).toString(),
-        },
+        method,
+        headers,
         ...getLndTlsOptions(),
       },
       (res) => {
@@ -64,7 +71,9 @@ async function postJson(urlString: string, body: string, headers: Record<string,
     );
 
     req.on("error", reject);
-    req.write(body);
+    if (body) {
+      req.write(body);
+    }
     req.end();
   });
 }
@@ -86,10 +95,11 @@ export async function payLndInvoice(paymentRequest: string): Promise<PaymentResu
   const url = `https://${host}:${port}/v1/channels/transactions`;
   const body = JSON.stringify({ payment_request: paymentRequest });
 
-  const res = await postJson(url, body, {
+  const res = await requestJson(url, "POST", {
     "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(body).toString(),
     "Grpc-Metadata-Macaroon": macaroon,
-  });
+  }, body);
 
   if (res.status < 200 || res.status >= 300) {
     throw new Error(`LND payment failed: HTTP ${res.status} — ${res.body}`);
@@ -128,10 +138,11 @@ export async function createLndInvoice(
   const url = `https://${host}:${port}/v1/invoices`;
   const body = JSON.stringify({ value: amountSats, memo, expiry: expirySeconds });
 
-  const res = await postJson(url, body, {
+  const res = await requestJson(url, "POST", {
     "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(body).toString(),
     "Grpc-Metadata-Macaroon": macaroon,
-  });
+  }, body);
 
   if (res.status < 200 || res.status >= 300) {
     throw new Error(`LND invoice creation failed: HTTP ${res.status} — ${res.body}`);
@@ -143,4 +154,51 @@ export async function createLndInvoice(
     rHashHex: Buffer.from(data.r_hash as string, "base64").toString("hex"),
     expiresAt: new Date(Date.now() + expirySeconds * 1000).toISOString(),
   };
+}
+
+export interface LndBalanceSummary {
+  onchainConfirmed: number;
+  onchainUnconfirmed: number;
+  channelLocal: number;
+  channelRemote: number;
+}
+
+export async function getLndBalance(): Promise<LndBalanceSummary> {
+  const host = process.env.LND_HOST;
+  const port = process.env.LND_PORT ?? "8080";
+  const macaroon = process.env.LND_MACAROON_HEX;
+
+  if (!host || !macaroon) {
+    return { onchainConfirmed: 0, onchainUnconfirmed: 0, channelLocal: 0, channelRemote: 0 };
+  }
+
+  try {
+    const [onchainRes, channelRes] = await Promise.all([
+      requestJson(`https://${host}:${port}/v1/balance/blockchain`, "GET", {
+        "Grpc-Metadata-Macaroon": macaroon,
+      }),
+      requestJson(`https://${host}:${port}/v1/balance/channels`, "GET", {
+        "Grpc-Metadata-Macaroon": macaroon,
+      }),
+    ]);
+
+    const onchain = onchainRes.status >= 200 && onchainRes.status < 300
+      ? JSON.parse(onchainRes.body) as { confirmed_balance?: string; unconfirmed_balance?: string }
+      : {};
+    const channel = channelRes.status >= 200 && channelRes.status < 300
+      ? JSON.parse(channelRes.body) as {
+          local_balance?: { sat?: string };
+          remote_balance?: { sat?: string };
+        }
+      : {};
+
+    return {
+      onchainConfirmed: parseInt(onchain.confirmed_balance ?? "0", 10),
+      onchainUnconfirmed: parseInt(onchain.unconfirmed_balance ?? "0", 10),
+      channelLocal: parseInt(channel.local_balance?.sat ?? "0", 10),
+      channelRemote: parseInt(channel.remote_balance?.sat ?? "0", 10),
+    };
+  } catch {
+    return { onchainConfirmed: 0, onchainUnconfirmed: 0, channelLocal: 0, channelRemote: 0 };
+  }
 }

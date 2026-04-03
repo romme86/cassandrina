@@ -492,6 +492,12 @@ Then fill in at least:
 docker compose --env-file .env -f infrastructure/docker-compose.yml up --build -d
 ```
 
+After a production deploy, apply any pending webapp schema migrations:
+
+```bash
+docker compose --env-file .env -f infrastructure/docker-compose.yml exec -T webapp sh -lc 'cd /repo/apps/webapp && pnpm migrate:up'
+```
+
 This starts:
 
 - TimescaleDB

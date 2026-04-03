@@ -19,7 +19,8 @@
       "Bash(cd /Users/saynode/Documents/GitHub/cassandrina && pnpm --filter webapp add node-pg-migrate 2>&1 | tail -5)",
       "Bash(ssh cassandrina@100.78.228.108 \"sudo tailscale serve --bg https+insecure://127.0.0.1:8081\" 2>&1)",
       "Bash(ssh cassandrina@100.78.228.108 \"sudo tailscale serve --bg http://127.0.0.1:8081\" 2>&1)",
-      "Bash(ssh cassandrina@100.78.228.108 \"docker exec infrastructure-nginx-1 cat /etc/nginx/conf.d/default.conf 2>/dev/null || docker exec infrastructure-nginx-1 cat /etc/nginx/nginx.conf\" 2>&1)"
+      "Bash(ssh cassandrina@100.78.228.108 \"docker exec infrastructure-nginx-1 cat /etc/nginx/conf.d/default.conf 2>/dev/null || docker exec infrastructure-nginx-1 cat /etc/nginx/nginx.conf\" 2>&1)",
+      "Bash(grep -r \"except\\\\|try\" /Users/romme86/Documents/GitHub/cassandrina/services/trading-bot/cassandrina/*.py -A 2)"
     ]
   }
 }

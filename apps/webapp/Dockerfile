@@ -40,6 +40,7 @@ ENV NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH}
 ENV WEBAPP_EXTERNAL_URL=${WEBAPP_EXTERNAL_URL}
 
 COPY --from=builder /repo/apps/webapp/.next ./.next
+COPY --from=builder /repo/apps/webapp/migrations ./migrations
 COPY --from=builder /repo/apps/webapp/next.config.mjs ./next.config.mjs
 
 EXPOSE 3000
