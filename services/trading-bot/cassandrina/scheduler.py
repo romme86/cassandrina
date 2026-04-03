@@ -41,6 +41,10 @@ logger = logging.getLogger(__name__)
 _CHANNEL_PREFIX = "cassandrina:"
 _MIN_CONFIDENCE_SCORE = 0.1
 _MAX_CONFIDENCE_SCORE = 1.0
+_DEFAULT_PM_CONF_WEIGHT_MIN_PCT = 10.0
+_DEFAULT_PM_CONF_WEIGHT_MAX_PCT = 30.0
+_DEFAULT_PM_TRADE_WINDOW_MINUTES = 60
+_DEFAULT_PM_MARKET_MAX_DISTANCE_PCT = 5.0
 _VOTE_CONFIDENCE_ADJUSTMENTS: dict[str, float] = {
     Strategy.A.value: 0.20,
     Strategy.B.value: 0.10,
@@ -592,6 +596,16 @@ class PredictionScheduler:
             return fallback
 
     @staticmethod
+    def _get_runtime_config_float(bot_config: dict[str, str], key: str, fallback: float) -> float:
+        value = bot_config.get(key)
+        if value is None:
+            return fallback
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    @staticmethod
     def _serialize_participant_predictions(participants: list[dict]) -> list[dict]:
         return [
             {
@@ -723,6 +737,37 @@ class PredictionScheduler:
         adjusted_confidence = confidence * (1.0 + adjustment)
         return min(max(adjusted_confidence, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE)
 
+    @staticmethod
+    def _get_polymarket_confidence_weight(
+        confidence_score: float,
+        *,
+        min_weight_pct: float,
+        max_weight_pct: float,
+    ) -> float:
+        min_weight = max(min_weight_pct, 0.0) / 100.0
+        max_weight = max(max_weight_pct, min_weight_pct) / 100.0
+        normalized_confidence = min(max(confidence_score, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE)
+        confidence_factor = 1.0 - normalized_confidence
+        return min_weight + confidence_factor * (max_weight - min_weight)
+
+    @classmethod
+    def _apply_polymarket_confidence_modifier(
+        cls,
+        confidence_score: float,
+        *,
+        alignment_score: float,
+        min_weight_pct: float,
+        max_weight_pct: float,
+    ) -> tuple[float, float]:
+        weight = cls._get_polymarket_confidence_weight(
+            confidence_score,
+            min_weight_pct=min_weight_pct,
+            max_weight_pct=max_weight_pct,
+        )
+        polymarket_confidence = min(max(alignment_score / 100.0, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE)
+        adjusted_confidence = (confidence_score * (1.0 - weight)) + (polymarket_confidence * weight)
+        return min(max(adjusted_confidence, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE), weight * 100.0
+
     def _execute_trade_for_round(self, round_id: int, *, participants: list[dict] | None = None) -> dict | None:
         existing_trade = self._db.get_open_trade_for_round(round_id)
         if existing_trade:
@@ -742,16 +787,51 @@ class PredictionScheduler:
         bot_config = self._safe_get_bot_config()
         min_sats = int(bot_config.get("min_sats", 1000))
         max_sats = int(bot_config.get("max_sats", 10000))
+        pm_conf_weight_min_pct = self._get_runtime_config_float(
+            bot_config,
+            "pm_conf_weight_min_pct",
+            _DEFAULT_PM_CONF_WEIGHT_MIN_PCT,
+        )
+        pm_conf_weight_max_pct = self._get_runtime_config_float(
+            bot_config,
+            "pm_conf_weight_max_pct",
+            _DEFAULT_PM_CONF_WEIGHT_MAX_PCT,
+        )
+        pm_trade_window_minutes = self._get_runtime_config_int(
+            bot_config,
+            "pm_trade_window_minutes",
+            _DEFAULT_PM_TRADE_WINDOW_MINUTES,
+        )
+        pm_market_max_distance_pct = self._get_runtime_config_float(
+            bot_config,
+            "pm_market_max_distance_pct",
+            _DEFAULT_PM_MARKET_MAX_DISTANCE_PCT,
+        )
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
         target_low_price, target_high_price, target_price = self._compute_target_range(participants)
+        current_price = self._market_data.get_btc_price()
+        direction = get_direction(current_price, target_price)
         polymarket_probability = 0.5
+        polymarket_influence_pct = 0.0
         if self._polymarket:
             try:
-                polymarket_probability = self._polymarket.fetch_btc_probability(
-                    datetime.now(timezone.utc).date()
+                target_date = datetime.now(timezone.utc).date()
+                polymarket_signal = self._polymarket.build_market_signal(
+                    target_date=target_date,
+                    target_price=target_price,
+                    direction=direction,
+                    lookback_minutes=pm_trade_window_minutes,
+                    max_distance_pct=pm_market_max_distance_pct,
                 )
+                if polymarket_signal.available:
+                    polymarket_probability = polymarket_signal.aligned_probability
+                else:
+                    polymarket_probability = self._polymarket.fetch_btc_probability(target_date)
             except Exception:
                 logger.exception("Failed to fetch Polymarket probability")
+                polymarket_signal = None
+        else:
+            polymarket_signal = None
         real_user_confidences = []
         for participant in participants:
             prediction_confidence = compute_prediction_confidence(
@@ -774,9 +854,14 @@ class PredictionScheduler:
             for confidence in real_user_confidences
         ]
         confidence_score = compute_round_confidence(adjusted_confidences)
+        if polymarket_signal and polymarket_signal.available:
+            confidence_score, polymarket_influence_pct = self._apply_polymarket_confidence_modifier(
+                confidence_score,
+                alignment_score=polymarket_signal.alignment_score,
+                min_weight_pct=pm_conf_weight_min_pct,
+                max_weight_pct=pm_conf_weight_max_pct,
+            )
         strategy = select_strategy(confidence_score)
-        current_price = self._market_data.get_btc_price()
-        direction = get_direction(current_price, target_price)
         sats_deployed = sum(int(p["sats_amount"]) for p in participants)
         self._db.update_round_analysis(
             round_id,
@@ -824,6 +909,7 @@ class PredictionScheduler:
                 "target_high_price": target_high_price,
                 "target_price": target_price,
                 "confidence_score": confidence_score,
+                "polymarket_influence_pct": polymarket_influence_pct,
                 "sats_deployed": sats_deployed,
                 "dry_run": not trading_enabled,
             },
@@ -837,6 +923,7 @@ class PredictionScheduler:
             "target_high_price": target_high_price,
             "target_price": target_price,
             "confidence_score": confidence_score,
+            "polymarket_influence_pct": polymarket_influence_pct,
             "sats_deployed": sats_deployed,
             "dry_run": not trading_enabled,
         }

@@ -193,3 +193,19 @@ class TestBotConfigDefaults:
     def test_default_max_sats(self, cur):
         cur.execute("SELECT value FROM bot_config WHERE key = 'max_sats'")
         assert cur.fetchone()["value"] == "10000"
+
+    def test_default_pm_conf_weight_min_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_conf_weight_min_pct'")
+        assert cur.fetchone()["value"] == "10"
+
+    def test_default_pm_conf_weight_max_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_conf_weight_max_pct'")
+        assert cur.fetchone()["value"] == "30"
+
+    def test_default_pm_trade_window_minutes(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_trade_window_minutes'")
+        assert cur.fetchone()["value"] == "60"
+
+    def test_default_pm_market_max_distance_pct(self, cur):
+        cur.execute("SELECT value FROM bot_config WHERE key = 'pm_market_max_distance_pct'")
+        assert cur.fetchone()["value"] == "5"
