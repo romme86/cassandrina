@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(
     {
-      prediction_id: prediction.id,
+      prediction_id: Number(prediction.id),
       lightning_invoice: invoice.paymentRequest,
       expires_at: invoice.expiresAt,
     },

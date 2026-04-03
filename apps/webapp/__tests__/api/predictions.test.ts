@@ -174,6 +174,47 @@ describe("POST /api/predictions", () => {
     expect(insertArgs?.[3]).toBe("Friends of BTC");
   });
 
+  test("coerces bigint-like prediction ids to numbers in the JSON response", async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ id: 1 }])
+      .mockResolvedValueOnce([{ id: 42 }]);
+
+    mockCreateInvoice.mockResolvedValueOnce({
+      paymentRequest: "lnbc500n1...",
+      rHashHex: "deadbeef",
+      expiresAt: "2026-03-20T10:00:00.000Z",
+    });
+
+    mockWithTransaction.mockImplementationOnce(async (callback) => {
+      const client = {
+        query: jest.fn().mockImplementation(async (sql: string) => {
+          if (sql.includes("SELECT id FROM predictions")) {
+            return { rows: [] };
+          }
+          if (sql.includes("INSERT INTO predictions")) {
+            return { rows: [{ id: "99" }] };
+          }
+          return { rows: [] };
+        }),
+      };
+      return callback(client as never);
+    });
+
+    const req = makeRequest({
+      platform: "telegram",
+      platform_user_id: "2004",
+      display_name: "alice",
+      predicted_low_price: 94000,
+      predicted_high_price: 96000,
+      sats_amount: 500,
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.prediction_id).toBe(99);
+  });
+
   test("returns 503 when lightning invoice creation fails", async () => {
     mockQuery
       .mockResolvedValueOnce([{ id: 1 }])   // user found

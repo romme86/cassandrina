@@ -760,6 +760,44 @@ func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
 	}
 }
 
+func TestSubmitPredictionAcceptsStringPredictionID(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"prediction_id":"99","lightning_invoice":"lnbc500n1...","expires_at":"2026-03-27T10:00:00Z"}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			GroupChatID: -42,
+			MinSats:     1000,
+			MaxSats:     10000,
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "93000 97000 3000",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "alice"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 invoice DM, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Pay this Lightning invoice to confirm") {
+		t.Fatalf("expected invoice instructions, got %q", gateway.messages[0].text)
+	}
+}
+
 func TestNonAdminCommandIsRejected(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{

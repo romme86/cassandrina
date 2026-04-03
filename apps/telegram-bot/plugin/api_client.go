@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,6 +32,27 @@ type PredictionResponse struct {
 	PredictionID     int    `json:"prediction_id"`
 	LightningInvoice string `json:"lightning_invoice"`
 	ExpiresAt        string `json:"expires_at"`
+}
+
+func (r *PredictionResponse) UnmarshalJSON(data []byte) error {
+	var payload struct {
+		PredictionID     json.RawMessage `json:"prediction_id"`
+		LightningInvoice string          `json:"lightning_invoice"`
+		ExpiresAt        string          `json:"expires_at"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+
+	predictionID, err := parseFlexibleInt(payload.PredictionID)
+	if err != nil {
+		return fmt.Errorf("prediction_id: %w", err)
+	}
+
+	r.PredictionID = predictionID
+	r.LightningInvoice = payload.LightningInvoice
+	r.ExpiresAt = payload.ExpiresAt
+	return nil
 }
 
 type StartPredictionRoundResponse struct {
@@ -360,6 +382,24 @@ func (c *WebappClient) doJSON(req *http.Request, target interface{}) error {
 	}
 
 	return nil
+}
+
+func parseFlexibleInt(raw json.RawMessage) (int, error) {
+	var value int
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return value, nil
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		parsed, parseErr := strconv.Atoi(strings.TrimSpace(text))
+		if parseErr != nil {
+			return 0, parseErr
+		}
+		return parsed, nil
+	}
+
+	return 0, fmt.Errorf("expected integer or integer string")
 }
 
 func parseAPIError(req *http.Request, resp *http.Response) error {
