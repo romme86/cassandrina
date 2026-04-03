@@ -13,10 +13,10 @@ func TestParsePrediction(t *testing.T) {
 	}{
 		{
 			name:     "valid prediction",
-			msg:      "93000 97000 500",
+			msg:      "93000 97000 3000",
 			wantLow:  93000,
 			wantHigh: 97000,
-			wantSats: 500,
+			wantSats: 3000,
 		},
 		{
 			name:     "valid with decimal prices",
@@ -32,17 +32,17 @@ func TestParsePrediction(t *testing.T) {
 		},
 		{
 			name:    "too many parts",
-			msg:     "95000 97000 500 extra",
+			msg:     "95000 97000 3000 extra",
 			wantErr: true,
 		},
 		{
 			name:    "negative low price",
-			msg:     "-95000 97000 500",
+			msg:     "-95000 97000 3000",
 			wantErr: true,
 		},
 		{
 			name:    "high below low",
-			msg:     "97000 95000 500",
+			msg:     "97000 95000 3000",
 			wantErr: true,
 		},
 		{
@@ -52,22 +52,22 @@ func TestParsePrediction(t *testing.T) {
 		},
 		{
 			name:    "below min sats",
-			msg:     "95000 97000 50",
+			msg:     "95000 97000 500",
 			wantErr: true,
 		},
 		{
 			name:    "above max sats",
-			msg:     "95000 97000 9999",
+			msg:     "95000 97000 10001",
 			wantErr: true,
 		},
 		{
 			name:    "non-numeric low price",
-			msg:     "abc 97000 500",
+			msg:     "abc 97000 3000",
 			wantErr: true,
 		},
 		{
 			name:    "non-numeric high price",
-			msg:     "95000 xyz 500",
+			msg:     "95000 xyz 3000",
 			wantErr: true,
 		},
 		{
@@ -77,16 +77,16 @@ func TestParsePrediction(t *testing.T) {
 		},
 		{
 			name:     "leading trailing whitespace",
-			msg:      "  95000 97000 500  ",
+			msg:      "  95000 97000 3000  ",
 			wantLow:  95000,
 			wantHigh: 97000,
-			wantSats: 500,
+			wantSats: 3000,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pred, err := ParsePrediction(tt.msg, 100, 5000)
+			pred, err := ParsePrediction(tt.msg, 1000, 10000)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ParsePrediction(%q) error = %v, wantErr = %v", tt.msg, err, tt.wantErr)
 			}

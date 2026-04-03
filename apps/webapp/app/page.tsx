@@ -16,6 +16,7 @@ import { StrategyChart } from "@/components/strategy-chart";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { BotLifecycleBadge } from "@/components/bot-lifecycle-badge";
 import { deriveBotControlStatus } from "@/lib/bot-control";
+import { formatScorePercent } from "@/lib/score-format";
 
 export const revalidate = 30;
 
@@ -210,7 +211,7 @@ export default async function DashboardPage() {
           label="Confidence"
           value={
             round?.confidence_score != null
-              ? `${round.confidence_score.toFixed(1)}%`
+              ? formatScorePercent(round.confidence_score)
               : "—"
           }
           subValue={round ? "current round" : "no active round"}

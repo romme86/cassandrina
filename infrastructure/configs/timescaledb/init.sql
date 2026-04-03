@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     platform        TEXT NOT NULL,
     platform_user_id TEXT NOT NULL,
     display_name    TEXT NOT NULL,
-    accuracy        FLOAT NOT NULL DEFAULT 50.0,
-    congruency      FLOAT NOT NULL DEFAULT 50.0,
+    accuracy        FLOAT NOT NULL DEFAULT 0.5,
+    congruency      FLOAT NOT NULL DEFAULT 0.5,
     joined_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (platform, platform_user_id)
 );

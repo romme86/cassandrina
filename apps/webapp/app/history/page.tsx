@@ -13,6 +13,7 @@ import {
 import { Select } from "@/components/ui/select";
 import { StrategyBadge } from "@/components/strategy-badge";
 import { withBasePath } from "@/lib/base-path";
+import { formatScorePercent } from "@/lib/score-format";
 import { History, TrendingUp, TrendingDown, Activity, BarChart2 } from "lucide-react";
 
 interface TradeHistoryRow {
@@ -159,7 +160,7 @@ export default function HistoryPage() {
         />
         <KpiTile
           label="Avg Confidence"
-          value={stats ? `${stats.avg_confidence.toFixed(1)}%` : "—"}
+          value={stats ? formatScorePercent(stats.avg_confidence) : "—"}
           icon={Activity}
         />
       </div>
@@ -243,7 +244,7 @@ export default function HistoryPage() {
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
                         {t.confidence_score != null
-                          ? `${t.confidence_score.toFixed(1)}%`
+                          ? formatScorePercent(t.confidence_score)
                           : "—"}
                       </TableCell>
                       <TableCell>

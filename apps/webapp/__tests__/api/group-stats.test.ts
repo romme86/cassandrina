@@ -35,8 +35,8 @@ describe("GET /api/admin/stats/groups", () => {
       {
         group_name: "Friends of BTC",
         telegram_group_chat_id: "-100123",
-        average_accuracy: 61.5,
-        average_congruency: 52.2,
+        average_accuracy: 0.615,
+        average_congruency: 0.522,
         balance_sats: 1234,
         profit_sats: 234,
         total_predictions: 7,

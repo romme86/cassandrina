@@ -75,8 +75,8 @@ export async function getGroupLeaderboard(): Promise<GroupLeaderboardRow[]> {
      SELECT
        gps.group_name,
        gps.telegram_group_chat_id,
-       COALESCE(gms.average_accuracy, 50)::float AS average_accuracy,
-       COALESCE(gms.average_congruency, 50)::float AS average_congruency,
+       COALESCE(gms.average_accuracy, 0.5)::float AS average_accuracy,
+       COALESCE(gms.average_congruency, 0.5)::float AS average_congruency,
        gps.balance_sats,
        gps.profit_sats,
        gps.total_predictions,

@@ -19,17 +19,19 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, time as dt_time, timedelta, timezone
+from datetime import date, datetime, time as dt_time, timedelta, timezone
 from enum import Enum
 from zoneinfo import ZoneInfo
 
 from cassandrina.profit import distribute_profit
 from cassandrina.scoring import (
-    compute_confidence,
-    compute_congruency,
-    is_prediction_correct,
-    update_accuracy,
-    update_congruency,
+    compute_prediction_accuracy,
+    compute_prediction_confidence,
+    compute_real_user_confidence,
+    compute_round_confidence,
+    compute_user_accuracy,
+    compute_user_congruency,
+    is_prediction_successful,
 )
 from cassandrina.strategy import Strategy, get_direction, get_leverage, select_strategy
 from cassandrina.trade_executor import _sats_to_btc
@@ -37,6 +39,15 @@ from cassandrina.trade_executor import _sats_to_btc
 logger = logging.getLogger(__name__)
 
 _CHANNEL_PREFIX = "cassandrina:"
+_MIN_CONFIDENCE_SCORE = 0.1
+_MAX_CONFIDENCE_SCORE = 1.0
+_VOTE_CONFIDENCE_ADJUSTMENTS: dict[str, float] = {
+    Strategy.A.value: 0.20,
+    Strategy.B.value: 0.10,
+    Strategy.C.value: 0.05,
+    Strategy.D.value: -0.05,
+    Strategy.E.value: -0.10,
+}
 
 
 class RoundStatus(str, Enum):
@@ -128,8 +139,8 @@ class PredictionScheduler:
                 "question_date": str(round_data["question_date"]),
                 "target_hour": prediction_target_hour,
                 "target_timezone": self.config.scheduler_timezone,
-                "min_sats": int(bot_config.get("min_sats", 100)),
-                "max_sats": int(bot_config.get("max_sats", 5000)),
+                "min_sats": int(bot_config.get("min_sats", 1000)),
+                "max_sats": int(bot_config.get("max_sats", 10000)),
                 "close_at": close_at.isoformat(),
             },
         )
@@ -469,7 +480,8 @@ class PredictionScheduler:
             time_zone=self.config.scheduler_timezone,
         )
         bot_config = self._safe_get_bot_config()
-        max_sats = int(bot_config.get("max_sats", 5000))
+        min_sats = int(bot_config.get("min_sats", 1000))
+        max_sats = int(bot_config.get("max_sats", 10000))
 
         for round_data in rounds:
             if round_data["status"] == "open":
@@ -490,10 +502,11 @@ class PredictionScheduler:
                     actual_high_price=actual_high_price,
                 )
                 for participant in participants:
-                    correct = is_prediction_correct(participant["predicted_price"], actual_price)
-                    round_congruency = compute_congruency(participant["sats_amount"], max_sats)
-                    accuracy = update_accuracy(float(participant["accuracy"]), correct)
-                    congruency = update_congruency(float(participant["congruency"]), round_congruency)
+                    accuracy, congruency = self._recompute_user_scores(
+                        user_id=int(participant["user_id"]),
+                        min_sats=min_sats,
+                        max_sats=max_sats,
+                    )
                     self._db.update_user_scores(participant["user_id"], accuracy, congruency)
 
                 trade = self._db.get_open_trade_for_round(round_data["id"])
@@ -624,6 +637,12 @@ class PredictionScheduler:
                     "predicted_low_price": float(participant["predicted_low_price"]),
                     "predicted_high_price": float(participant["predicted_high_price"]),
                     "predicted_price": float(participant["predicted_price"]),
+                    "successful": is_prediction_successful(
+                        predicted_low=float(participant["predicted_low_price"]),
+                        predicted_high=float(participant["predicted_high_price"]),
+                        actual_low=actual_low_price,
+                        actual_high=actual_high_price,
+                    ),
                     "range_error_pct": self._compute_range_error_pct(
                         float(participant["predicted_low_price"]),
                         float(participant["predicted_high_price"]),
@@ -674,6 +693,36 @@ class PredictionScheduler:
         except Exception:
             logger.exception("Failed to close exchange position for trade %s", trade["id"])
 
+    def _get_weekly_vote_confidence_adjustment(self, week_start: date) -> float:
+        """Return the weighted weekly vote adjustment as a decimal percentage."""
+        try:
+            vote_results = self._db.get_weekly_vote_results(week_start)
+        except Exception:
+            logger.exception("Failed to load weekly vote results")
+            return 0.0
+
+        total_votes = sum(int(votes) for votes in vote_results.values())
+        if total_votes <= 0:
+            return 0.0
+
+        weighted_adjustment = sum(
+            _VOTE_CONFIDENCE_ADJUSTMENTS.get(strategy, 0.0) * int(votes)
+            for strategy, votes in vote_results.items()
+        )
+        adjustment = weighted_adjustment / total_votes
+        logger.info(
+            "Weekly vote adjustment for %s: %.2f%% from %s",
+            week_start.isoformat(),
+            adjustment * 100,
+            vote_results,
+        )
+        return adjustment
+
+    @staticmethod
+    def _apply_confidence_adjustment(confidence: float, adjustment: float) -> float:
+        adjusted_confidence = confidence * (1.0 + adjustment)
+        return min(max(adjusted_confidence, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE)
+
     def _execute_trade_for_round(self, round_id: int, *, participants: list[dict] | None = None) -> dict | None:
         existing_trade = self._db.get_open_trade_for_round(round_id)
         if existing_trade:
@@ -691,7 +740,8 @@ class PredictionScheduler:
             return None
 
         bot_config = self._safe_get_bot_config()
-        max_sats = int(bot_config.get("max_sats", 5000))
+        min_sats = int(bot_config.get("min_sats", 1000))
+        max_sats = int(bot_config.get("max_sats", 10000))
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
         target_low_price, target_high_price, target_price = self._compute_target_range(participants)
         polymarket_probability = 0.5
@@ -702,25 +752,29 @@ class PredictionScheduler:
                 )
             except Exception:
                 logger.exception("Failed to fetch Polymarket probability")
-        avg_accuracy = sum(float(p["accuracy"]) for p in participants) / len(participants)
-        avg_congruency = sum(float(p["congruency"]) for p in participants) / len(participants)
-        confidence_score = compute_confidence(
-            avg_accuracy=avg_accuracy,
-            avg_congruency=avg_congruency,
-            polymarket_probability=polymarket_probability,
-        )
-        strategy = select_strategy(confidence_score)
-
-        # Override with weekly vote winner if available
+        real_user_confidences = []
+        for participant in participants:
+            prediction_confidence = compute_prediction_confidence(
+                sats_invested=int(participant["sats_amount"]),
+                min_sats=min_sats,
+                max_sats=max_sats,
+            )
+            real_user_confidences.append(
+                compute_real_user_confidence(
+                    prediction_confidence=prediction_confidence,
+                    congruency=float(participant["congruency"]),
+                    accuracy=float(participant["accuracy"]),
+                )
+            )
         local_now = datetime.now(self._scheduler_tz)
         week_start = (local_now - timedelta(days=local_now.weekday())).date()
-        try:
-            vote_winner = self._db.get_winning_vote_strategy(week_start)
-            if vote_winner:
-                strategy = Strategy(vote_winner)
-                logger.info("Strategy overridden by weekly vote: %s", strategy.value)
-        except Exception:
-            logger.exception("Failed to check weekly vote results")
+        vote_adjustment = self._get_weekly_vote_confidence_adjustment(week_start)
+        adjusted_confidences = [
+            self._apply_confidence_adjustment(confidence, vote_adjustment)
+            for confidence in real_user_confidences
+        ]
+        confidence_score = compute_round_confidence(adjusted_confidences)
+        strategy = select_strategy(confidence_score)
         current_price = self._market_data.get_btc_price()
         direction = get_direction(current_price, target_price)
         sats_deployed = sum(int(p["sats_amount"]) for p in participants)
@@ -786,6 +840,29 @@ class PredictionScheduler:
             "sats_deployed": sats_deployed,
             "dry_run": not trading_enabled,
         }
+
+    def _recompute_user_scores(self, user_id: int, *, min_sats: int, max_sats: int) -> tuple[float, float]:
+        history = self._db.get_user_settled_prediction_history(user_id)
+        prediction_accuracies = [
+            compute_prediction_accuracy(
+                predicted_low=float(row["predicted_low_price"]),
+                predicted_high=float(row["predicted_high_price"]),
+                actual_low=float(row["btc_actual_low_price"]),
+                actual_high=float(row["btc_actual_high_price"]),
+            )
+            for row in history
+        ]
+        prediction_confidences = [
+            compute_prediction_confidence(
+                sats_invested=int(row["sats_amount"]),
+                min_sats=min_sats,
+                max_sats=max_sats,
+            )
+            for row in history
+        ]
+        accuracy = compute_user_accuracy(prediction_accuracies)
+        congruency = compute_user_congruency(prediction_confidences, prediction_accuracies)
+        return accuracy, congruency
 
     @staticmethod
     def _compute_target_range(participants: list[dict]) -> tuple[float, float, float]:

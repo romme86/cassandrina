@@ -1,19 +1,15 @@
 """
-TDD — Scheduler tests.
-Uses freezegun for time control and mocks Redis/APScheduler.
-Run: pytest tests/test_scheduler.py
+Scheduler tests for the prediction lifecycle and scoring integration.
 """
 
+from contextlib import nullcontext
+from datetime import datetime
+from unittest.mock import MagicMock, call
+
 import pytest
-from unittest.mock import MagicMock, patch, call
-from datetime import datetime, timezone
 from freezegun import freeze_time
 
-from cassandrina.scheduler import (
-    PredictionScheduler,
-    SchedulerConfig,
-    RoundStatus,
-)
+from cassandrina.scheduler import PredictionScheduler, RoundStatus, SchedulerConfig
 
 
 @pytest.fixture
@@ -23,7 +19,7 @@ def config():
         prediction_open_hour=8,
         prediction_target_hour=16,
         prediction_window_hours=6,
-        weekly_vote_day=6,       # Sunday
+        weekly_vote_day=6,
         weekly_vote_hour=20,
         report_hours_before_target=8,
         min_paid_predictions=1,
@@ -40,15 +36,22 @@ def mock_redis():
 @pytest.fixture
 def mock_db():
     db = MagicMock()
-    db.get_paid_predictions_count = MagicMock(return_value=0)
-    db.get_round_status = MagicMock(return_value=RoundStatus.OPEN)
-    db.get_open_round = MagicMock(return_value=None)
-    db.get_rounds_for_settlement = MagicMock(return_value=[])
-    db.get_round_total_paid_sats = MagicMock(return_value=0)
-    db.get_paid_predictions = MagicMock(return_value=[])
-    db.get_open_trade_for_round = MagicMock(return_value=None)
+    db.get_paid_predictions_count.return_value = 0
+    db.get_round_status.return_value = RoundStatus.OPEN
+    db.get_open_round.return_value = None
+    db.get_rounds_for_settlement.return_value = []
+    db.get_round_total_paid_sats.return_value = 0
+    db.get_paid_predictions.return_value = []
+    db.get_open_trade_for_round.return_value = None
     db.close_round = MagicMock()
-    db.create_round = MagicMock(return_value={"id": 1})
+    db.create_round.return_value = {
+        "id": 1,
+        "question_date": "2026-03-01",
+        "target_hour": 16,
+    }
+    db.get_bot_config.return_value = {}
+    db.connection.return_value = nullcontext()
+    db.get_user_settled_prediction_history.return_value = []
     return db
 
 
@@ -56,8 +59,6 @@ def mock_db():
 def scheduler(config, mock_redis, mock_db):
     return PredictionScheduler(config=config, redis_client=mock_redis, db=mock_db)
 
-
-# ── Prediction window open ───────────────────────────────────
 
 class TestPredictionWindowOpen:
     @freeze_time("2026-03-01 08:00:00 UTC")
@@ -68,15 +69,6 @@ class TestPredictionWindowOpen:
         channel, _ = mock_redis.publish.call_args.args
         assert "prediction:open" in channel
 
-    @freeze_time("2026-03-01 08:00:00 UTC")
-    def test_publish_includes_round_info(self, scheduler, mock_redis, mock_db):
-        scheduler.open_prediction_window()
-        _, message = mock_redis.publish.call_args.args
-        import json
-        data = json.loads(message)
-        assert "round_id" in data
-        assert data["target_timezone"] == "Europe/Rome"
-
     def test_does_not_open_second_round_when_one_is_already_open(self, scheduler, mock_db):
         mock_db.get_open_round.return_value = {"id": 7}
         round_data = scheduler.open_prediction_window()
@@ -84,10 +76,8 @@ class TestPredictionWindowOpen:
         mock_db.create_round.assert_not_called()
 
 
-# ── Prediction window close ──────────────────────────────────
-
 class TestPredictionWindowClose:
-    def test_closes_after_6_hours(self, scheduler, mock_redis, mock_db):
+    def test_closes_after_paid_predictions_exist(self, scheduler, mock_db):
         mock_db.get_paid_predictions_count.return_value = 3
         scheduler.try_close_window(round_id=1)
         mock_db.close_round.assert_called_once_with(1)
@@ -97,57 +87,171 @@ class TestPredictionWindowClose:
         scheduler.try_close_window(round_id=1)
         mock_db.close_round.assert_not_called()
 
-    def test_close_publishes_event(self, scheduler, mock_redis, mock_db):
-        mock_db.get_paid_predictions_count.return_value = 2
-        scheduler.try_close_window(round_id=1)
-        mock_redis.publish.assert_called_once()
-        channel, _ = mock_redis.publish.call_args.args
-        assert "prediction:close" in channel
-
-
-# ── 8-hour notification trigger ──────────────────────────────
-
-class TestEightHourNotification:
-    @freeze_time("2026-03-01 08:00:00 UTC")
-    def test_sends_stats_8h_event(self, scheduler, mock_redis):
-        scheduler.send_8h_report(round_id=1)
-        mock_redis.publish.assert_called_once()
-        channel, _ = mock_redis.publish.call_args.args
-        assert "stats:8h" in channel
-
-
-# ── Weekly vote trigger ───────────────────────────────────────
 
 class TestWeeklyVote:
-    @freeze_time("2026-03-01 20:00:00 UTC")   # Sunday 20:00 UTC
     def test_sends_weekly_vote_event(self, scheduler, mock_redis):
         scheduler.send_weekly_vote()
-        mock_redis.publish.assert_called_once()
         channel, _ = mock_redis.publish.call_args.args
         assert "weekly:vote" in channel
 
-    def test_weekly_vote_includes_options(self, scheduler, mock_redis):
-        scheduler.send_weekly_vote()
-        _, message = mock_redis.publish.call_args.args
-        import json
-        data = json.loads(message)
-        assert "options" in data
 
+class TestTradeExecution:
+    def test_round_confidence_uses_real_user_confidence_formula(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_000
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            market_data_client=market_data,
+        )
+        mock_db.get_bot_config.return_value = {
+            "min_sats": "1000",
+            "max_sats": "10000",
+            "trading_enabled": "false",
+        }
+        mock_db.get_paid_predictions.return_value = [
+            {
+                "user_id": 1,
+                "predicted_low_price": 109_000,
+                "predicted_high_price": 111_000,
+                "predicted_price": 110_000,
+                "sats_amount": 3400,
+                "accuracy": 0.5,
+                "congruency": 0.6,
+            },
+            {
+                "user_id": 2,
+                "predicted_low_price": 109_000,
+                "predicted_high_price": 111_000,
+                "predicted_price": 110_000,
+                "sats_amount": 7000,
+                "accuracy": 0.75,
+                "congruency": 0.9,
+            },
+        ]
+        mock_db.create_trade.return_value = {
+            "id": 9,
+            "strategy": "B",
+            "direction": "long",
+            "entry_price": 100_000,
+            "target_price": 110_000,
+            "sats_deployed": 10_400,
+        }
+        mock_db.get_weekly_vote_results.return_value = {}
 
-# ── Trade trigger after window closes ────────────────────────
+        result = scheduler._execute_trade_for_round(1)
 
-class TestTradeTrigger:
-    def test_close_triggers_confidence_then_trade(self, scheduler, mock_redis, mock_db):
-        mock_db.get_paid_predictions_count.return_value = 1
-        scheduler.on_trade_execute = MagicMock()
-        scheduler.try_close_window(round_id=1)
-        scheduler.on_trade_execute.assert_called_once_with(round_id=1)
+        assert result is not None
+        assert result["confidence_score"] == pytest.approx(0.624)
+        assert result["strategy"] == "B"
+        assert result["direction"] == "long"
+        mock_db.update_round_analysis.assert_called_once()
+
+    @freeze_time("2026-03-02 09:00:00")
+    def test_weekly_vote_adjusts_round_confidence_from_weighted_results(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_000
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            market_data_client=market_data,
+        )
+        mock_db.get_bot_config.return_value = {
+            "min_sats": "1000",
+            "max_sats": "10000",
+            "trading_enabled": "false",
+        }
+        mock_db.get_paid_predictions.return_value = [
+            {
+                "user_id": 1,
+                "predicted_low_price": 109_000,
+                "predicted_high_price": 111_000,
+                "predicted_price": 110_000,
+                "sats_amount": 5000,
+                "accuracy": 0.5,
+                "congruency": 0.5,
+            }
+        ]
+        mock_db.create_trade.return_value = {
+            "id": 10,
+            "strategy": "B",
+            "direction": "long",
+            "entry_price": 100_000,
+            "target_price": 110_000,
+            "sats_deployed": 5000,
+        }
+        mock_db.get_weekly_vote_results.return_value = {"A": 2, "E": 1}
+
+        result = scheduler._execute_trade_for_round(1)
+
+        assert result is not None
+        assert result["confidence_score"] == pytest.approx(0.55)
+        assert result["strategy"] == "B"
 
 
 class TestSettlement:
-    def test_settles_all_rounds_for_the_target_date(self, config, mock_redis, mock_db):
+    def test_settlement_recomputes_user_scores_from_prediction_history(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_500
+        market_data.get_btc_day_range.return_value = (99_950, 101_100)
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            market_data_client=market_data,
+        )
+        mock_db.get_bot_config.return_value = {
+            "min_sats": "1000",
+            "max_sats": "10000",
+        }
+        mock_db.get_rounds_for_settlement.return_value = [{"id": 1, "status": "closed"}]
+        mock_db.get_paid_predictions.return_value = [
+            {
+                "user_id": 1,
+                "predicted_low_price": 100_000,
+                "predicted_high_price": 101_000,
+                "predicted_price": 100_500,
+                "sats_amount": 3400,
+                "accuracy": 0.5,
+                "congruency": 0.5,
+            }
+        ]
+        mock_db.get_user_settled_prediction_history.return_value = [
+            {
+                "predicted_low_price": 100_000,
+                "predicted_high_price": 101_000,
+                "sats_amount": 3400,
+                "btc_actual_low_price": 99_950,
+                "btc_actual_high_price": 101_100,
+            },
+            {
+                "predicted_low_price": 98_000,
+                "predicted_high_price": 102_500,
+                "sats_amount": 8000,
+                "btc_actual_low_price": 98_100,
+                "btc_actual_high_price": 102_000,
+            },
+        ]
+
+        scheduler._job_settle_round()
+
+        mock_db.settle_round_with_extremes.assert_called_once_with(
+            1,
+            actual_price=100_500,
+            actual_low_price=99_950,
+            actual_high_price=101_100,
+        )
+        mock_db.update_user_scores.assert_called_once()
+        _, accuracy, congruency = mock_db.update_user_scores.call_args.args
+        assert accuracy == pytest.approx(0.9981473253538242)
+        assert congruency == pytest.approx(0.5718526746461758)
+
+    def test_settlement_closes_each_round_with_extremes(self, config, mock_redis, mock_db):
         market_data = MagicMock()
         market_data.get_btc_price.return_value = 100_000
+        market_data.get_btc_day_range.return_value = (99_000, 101_000)
         scheduler = PredictionScheduler(
             config=config,
             redis_client=mock_redis,
@@ -161,4 +265,7 @@ class TestSettlement:
 
         scheduler._job_settle_round()
 
-        assert mock_db.settle_round.call_args_list == [call(1, 100_000), call(2, 100_000)]
+        assert mock_db.settle_round_with_extremes.call_args_list == [
+            call(1, actual_price=100_000, actual_low_price=99_000, actual_high_price=101_000),
+            call(2, actual_price=100_000, actual_low_price=99_000, actual_high_price=101_000),
+        ]

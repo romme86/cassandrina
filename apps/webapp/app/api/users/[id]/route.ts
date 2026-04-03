@@ -3,10 +3,25 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-function isPredictionCorrect(predicted: number, actual: number): boolean {
-  if (actual === 0) return false;
-  const errorPct = Math.abs(predicted - actual) / actual;
-  return errorPct <= 0.02; // within 2%
+function isPredictionSuccessful(
+  predictedLow: number,
+  predictedHigh: number,
+  actualLow: number,
+  actualHigh: number
+): boolean {
+  return Math.abs(predictedLow - actualLow) <= 100 && Math.abs(predictedHigh - actualHigh) <= 100;
+}
+
+function computeRangeErrorPct(
+  predictedLow: number,
+  predictedHigh: number,
+  actualLow: number,
+  actualHigh: number
+): number | null {
+  if (actualLow <= 0 || actualHigh <= 0) return null;
+  const lowError = Math.abs(predictedLow - actualLow) / actualLow;
+  const highError = Math.abs(predictedHigh - actualHigh) / actualHigh;
+  return ((lowError + highError) / 2) * 100;
 }
 
 export async function GET(
@@ -34,19 +49,23 @@ export async function GET(
 
   const predictions = await query<{
     id: number;
+    predicted_low_price: number;
+    predicted_high_price: number;
     predicted_price: number;
     sats_amount: number;
     paid: boolean;
     created_at: string;
     question_date: string;
+    btc_actual_low_price: number | null;
+    btc_actual_high_price: number | null;
     btc_actual_price: number | null;
     btc_target_price: number | null;
     round_status: string;
     confidence_score: number | null;
     strategy_used: string | null;
   }>(
-    `SELECT p.id, p.predicted_price, p.sats_amount, p.paid, p.created_at,
-            r.question_date, r.btc_actual_price, r.btc_target_price,
+    `SELECT p.id, p.predicted_low_price, p.predicted_high_price, p.predicted_price, p.sats_amount, p.paid, p.created_at,
+            r.question_date, r.btc_actual_low_price, r.btc_actual_high_price, r.btc_actual_price, r.btc_target_price,
             r.status AS round_status, r.confidence_score, r.strategy_used
      FROM predictions p
      JOIN prediction_rounds r ON r.id = p.round_id
@@ -58,12 +77,22 @@ export async function GET(
 
   const enriched = predictions.map((p) => {
     const correct =
-      p.btc_actual_price != null
-        ? isPredictionCorrect(p.predicted_price, p.btc_actual_price)
+      p.btc_actual_low_price != null && p.btc_actual_high_price != null
+        ? isPredictionSuccessful(
+            p.predicted_low_price,
+            p.predicted_high_price,
+            p.btc_actual_low_price,
+            p.btc_actual_high_price
+          )
         : null;
     const errorPct =
-      p.btc_actual_price != null && p.btc_actual_price > 0
-        ? Math.abs(p.predicted_price - p.btc_actual_price) / p.btc_actual_price
+      p.btc_actual_low_price != null && p.btc_actual_high_price != null
+        ? computeRangeErrorPct(
+            p.predicted_low_price,
+            p.predicted_high_price,
+            p.btc_actual_low_price,
+            p.btc_actual_high_price
+          )
         : null;
     return { ...p, correct, error_pct: errorPct };
   });

@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         `SELECT COUNT(*)::int AS total_trades,
                 SUM(CASE WHEN pnl_sats > 0 THEN 1 ELSE 0 END)::int AS wins,
                 COALESCE(SUM(pnl_sats), 0)::int AS net_pnl,
-                COALESCE(ROUND(AVG(r.confidence_score)), 0)::int AS avg_confidence
+                COALESCE(AVG(r.confidence_score), 0)::float AS avg_confidence
          FROM trades t
          LEFT JOIN prediction_rounds r ON r.id = t.round_id
          WHERE ${where}`,

@@ -19,7 +19,7 @@ function HistoryKpiBar({ kpi }: { kpi: HistoryKpi }) {
         {kpi.netProfitSats >= 0 ? "+" : ""}
         {kpi.netProfitSats.toLocaleString()} sats
       </span>
-      <span data-testid="avg-confidence">{kpi.avgConfidence.toFixed(1)}% avg confidence</span>
+      <span data-testid="avg-confidence">{(kpi.avgConfidence * 100).toFixed(1)}% avg confidence</span>
     </div>
   );
 }
@@ -53,7 +53,7 @@ function TradeTable({ trades }: { trades: TradeRow[] }) {
             <td>{t.opened_at}</td>
             <td>{t.strategy}</td>
             <td>{t.direction}</td>
-            <td>{t.confidence_score != null ? `${t.confidence_score.toFixed(1)}%` : "—"}</td>
+            <td>{t.confidence_score != null ? `${(t.confidence_score * 100).toFixed(1)}%` : "—"}</td>
             <td data-testid={`result-${t.id}`}>{t.status}</td>
             <td data-testid={`pnl-${t.id}`}>
               {t.pnl_sats != null
@@ -108,7 +108,7 @@ const SAMPLE_TRADES: TradeRow[] = [
     opened_at: "2026-02-01",
     strategy: "A",
     direction: "long",
-    confidence_score: 72.5,
+    confidence_score: 0.725,
     status: "closed",
     pnl_sats: 1500,
   },
@@ -117,7 +117,7 @@ const SAMPLE_TRADES: TradeRow[] = [
     opened_at: "2026-02-02",
     strategy: "B",
     direction: "short",
-    confidence_score: 58.0,
+    confidence_score: 0.58,
     status: "liquidated",
     pnl_sats: -800,
   },
@@ -136,7 +136,7 @@ describe("HistoryKpiBar", () => {
   it("renders total trades count", () => {
     render(
       <HistoryKpiBar
-        kpi={{ totalTrades: 42, winRate: 65.3, netProfitSats: 12000, avgConfidence: 68.5 }}
+        kpi={{ totalTrades: 42, winRate: 65.3, netProfitSats: 12000, avgConfidence: 0.685 }}
       />
     );
     expect(screen.getByTestId("total-trades")).toHaveTextContent("42 trades");
@@ -145,7 +145,7 @@ describe("HistoryKpiBar", () => {
   it("renders win rate", () => {
     render(
       <HistoryKpiBar
-        kpi={{ totalTrades: 10, winRate: 70.0, netProfitSats: 5000, avgConfidence: 72.0 }}
+        kpi={{ totalTrades: 10, winRate: 70.0, netProfitSats: 5000, avgConfidence: 0.72 }}
       />
     );
     expect(screen.getByTestId("win-rate")).toHaveTextContent("70.0% win rate");
@@ -154,7 +154,7 @@ describe("HistoryKpiBar", () => {
   it("renders net profit with + sign for positive", () => {
     render(
       <HistoryKpiBar
-        kpi={{ totalTrades: 5, winRate: 60.0, netProfitSats: 3000, avgConfidence: 65.0 }}
+        kpi={{ totalTrades: 5, winRate: 60.0, netProfitSats: 3000, avgConfidence: 0.65 }}
       />
     );
     expect(screen.getByTestId("net-profit")).toHaveTextContent("+3,000 sats");
@@ -163,7 +163,7 @@ describe("HistoryKpiBar", () => {
   it("renders avg confidence", () => {
     render(
       <HistoryKpiBar
-        kpi={{ totalTrades: 5, winRate: 60.0, netProfitSats: 100, avgConfidence: 68.2 }}
+        kpi={{ totalTrades: 5, winRate: 60.0, netProfitSats: 100, avgConfidence: 0.682 }}
       />
     );
     expect(screen.getByTestId("avg-confidence")).toHaveTextContent("68.2% avg confidence");

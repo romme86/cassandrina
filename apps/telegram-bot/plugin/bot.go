@@ -765,12 +765,12 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 				asFloat(tradeSummary["target_low_price"]),
 				asFloat(tradeSummary["target_high_price"]),
 			),
-			fmt.Sprintf(
-				"Entry: $%.2f | Confidence: %.1f%% | Strategy: %s",
-				asFloat(tradeSummary["entry_price"]),
-				asFloat(tradeSummary["confidence_score"]),
-				asString(tradeSummary["strategy"]),
-			),
+				fmt.Sprintf(
+					"Entry: $%.2f | Confidence: %.1f%% | Strategy: %s",
+					asFloat(tradeSummary["entry_price"]),
+					asFloat(tradeSummary["confidence_score"])*100,
+					asString(tradeSummary["strategy"]),
+				),
 		)
 	}
 
@@ -939,11 +939,11 @@ func formatUserStatsMessages(rows []UserStatsRow) []string {
 	current := "User stats"
 	for i, row := range rows {
 		entry := fmt.Sprintf(
-			"\n\n%d. %s\nAcc %.1f%% | Cong %.1f%%\nBal %s | PnL %s\nPredictions %d",
+			"\n\n%d. %s\nAcc %s | Cong %s\nBal %s | PnL %s\nPredictions %d",
 			i+1,
 			row.DisplayName,
-			row.Accuracy,
-			row.Congruency,
+			formatScorePercent(row.Accuracy),
+			formatScorePercent(row.Congruency),
 			formatSats(row.BalanceSats),
 			formatSignedSats(row.ProfitSats),
 			row.TotalPredictions,
@@ -968,11 +968,11 @@ func formatGroupStatsMessages(rows []GroupStatsRow) []string {
 	current := "Group stats"
 	for i, row := range rows {
 		entry := fmt.Sprintf(
-			"\n\n%d. %s\nAvg acc %.1f%% | Avg cong %.1f%%\nMembers %d | Predictions %d\nBal %s | PnL %s",
+			"\n\n%d. %s\nAvg acc %s | Avg cong %s\nMembers %d | Predictions %d\nBal %s | PnL %s",
 			i+1,
 			row.GroupName,
-			row.AverageAccuracy,
-			row.AverageCongruency,
+			formatScorePercent(row.AverageAccuracy),
+			formatScorePercent(row.AverageCongruency),
 			row.ParticipantCount,
 			row.TotalPredictions,
 			formatSats(row.BalanceSats),
@@ -998,12 +998,12 @@ func formatMyStatsMessage(stats *MyStatsResponse, telegramUserID int64) string {
 		internalUserID = strconv.Itoa(*stats.UserID)
 	}
 	return fmt.Sprintf(
-		"My stats\n\nName: %s\nTelegram ID: %d\nInternal user ID: %s\nAccuracy: %.1f%%\nCongruency: %.1f%%\nBalance: %s\nProfit: %s\nPredictions: %d",
+		"My stats\n\nName: %s\nTelegram ID: %d\nInternal user ID: %s\nAccuracy: %s\nCongruency: %s\nBalance: %s\nProfit: %s\nPredictions: %d",
 		stats.DisplayName,
 		telegramUserID,
 		internalUserID,
-		stats.Accuracy,
-		stats.Congruency,
+		formatScorePercent(stats.Accuracy),
+		formatScorePercent(stats.Congruency),
 		formatSats(stats.BalanceSats),
 		formatSignedSats(stats.ProfitSats),
 		stats.TotalPredictions,
@@ -1028,6 +1028,10 @@ func formatLocalTime(value string) string {
 
 func formatSats(value int) string {
 	return fmt.Sprintf("%s sats", formatInt(value))
+}
+
+func formatScorePercent(score float64) string {
+	return fmt.Sprintf("%.1f%%", score*100)
 }
 
 func formatSignedSats(value int) string {

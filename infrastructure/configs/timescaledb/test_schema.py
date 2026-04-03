@@ -93,21 +93,21 @@ class TestUsersColumns:
     def test_has_display_name(self, cur):
         assert column_exists(cur, "users", "display_name")
 
-    def test_has_accuracy_default_50(self, cur):
+    def test_has_accuracy_default_point_5(self, cur):
         cur.execute(
             "SELECT column_default FROM information_schema.columns WHERE table_name='users' AND column_name='accuracy'"
         )
         row = cur.fetchone()
         assert row is not None
-        assert "50" in str(row["column_default"])
+        assert "0.5" in str(row["column_default"])
 
-    def test_has_congruency_default_50(self, cur):
+    def test_has_congruency_default_point_5(self, cur):
         cur.execute(
             "SELECT column_default FROM information_schema.columns WHERE table_name='users' AND column_name='congruency'"
         )
         row = cur.fetchone()
         assert row is not None
-        assert "50" in str(row["column_default"])
+        assert "0.5" in str(row["column_default"])
 
     def test_has_joined_at(self, cur):
         assert column_exists(cur, "users", "joined_at")
@@ -192,4 +192,4 @@ class TestBotConfigDefaults:
 
     def test_default_max_sats(self, cur):
         cur.execute("SELECT value FROM bot_config WHERE key = 'max_sats'")
-        assert cur.fetchone()["value"] == "5000"
+        assert cur.fetchone()["value"] == "10000"

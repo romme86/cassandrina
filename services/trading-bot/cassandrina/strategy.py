@@ -9,19 +9,19 @@ from enum import Enum
 
 
 class Strategy(str, Enum):
-    A = "A"   # confidence ≥ 65 — Futures, 20x–40x leverage
-    B = "B"   # confidence 55–64 — Futures, up to 20x
-    C = "C"   # confidence 45–54 — Neutral grid
-    D = "D"   # confidence 35–44 — Spot, 10% TP
-    E = "E"   # confidence < 35  — Spot, 2% TP
+    A = "A"   # confidence ≥ 0.65 — Futures, 20x–40x leverage
+    B = "B"   # confidence 0.55–0.64 — Futures, up to 20x
+    C = "C"   # confidence 0.45–0.54 — Neutral grid
+    D = "D"   # confidence 0.35–0.44 — Spot, 10% TP
+    E = "E"   # confidence < 0.35  — Spot, 2% TP
 
 
 # Strategy boundaries (lower bound inclusive)
 _STRATEGY_THRESHOLDS: list[tuple[float, Strategy]] = [
-    (65.0, Strategy.A),
-    (55.0, Strategy.B),
-    (45.0, Strategy.C),
-    (35.0, Strategy.D),
+    (0.65, Strategy.A),
+    (0.55, Strategy.B),
+    (0.45, Strategy.C),
+    (0.35, Strategy.D),
 ]
 
 # Default leverage per strategy
@@ -56,7 +56,7 @@ _GRID_DISTANCE_FRACTION: float = 0.20
 
 
 def select_strategy(confidence: float) -> Strategy:
-    """Return the appropriate Strategy for the given confidence score (0–100)."""
+    """Return the appropriate Strategy for the given confidence score (0.1–1.0)."""
     for threshold, strategy in _STRATEGY_THRESHOLDS:
         if confidence >= threshold:
             return strategy

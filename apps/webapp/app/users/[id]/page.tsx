@@ -17,6 +17,7 @@ import { StrategyBadge } from "@/components/strategy-badge";
 import { AccuracyChart } from "@/components/accuracy-chart";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
+import { formatScorePercent } from "@/lib/score-format";
 import { ArrowLeft, Target, Brain, ListOrdered, CreditCard, Coins } from "lucide-react";
 
 export const revalidate = 30;
@@ -136,8 +137,8 @@ export default async function UserDetailPage({ params }: { params: { id: string 
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatCard label="Accuracy" value={`${user.accuracy.toFixed(1)}%`} icon={Target} />
-        <StatCard label="Congruency" value={`${user.congruency.toFixed(1)}%`} icon={Brain} />
+        <StatCard label="Accuracy" value={formatScorePercent(user.accuracy)} icon={Target} />
+        <StatCard label="Congruency" value={formatScorePercent(user.congruency)} icon={Brain} />
         <StatCard label="Predictions" value={user.total_predictions} icon={ListOrdered} />
         <StatCard label="Paid" value={user.paid_predictions} icon={CreditCard} />
         <StatCard label="Sats Won" value={user.total_sats_won.toLocaleString()} icon={Coins} />

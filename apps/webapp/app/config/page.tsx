@@ -42,7 +42,7 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   prediction_target_hour: "Scheduler-local hour at which the BTC trade is settled and the day range is evaluated.",
   prediction_window_hours: "How many hours the prediction window stays open before Cassandrina closes submissions.",
   min_sats: "Minimum satoshi amount required for a valid prediction. Below this, predictions are rejected.",
-  max_sats: "Maximum satoshi amount allowed per prediction. Also used as the denominator for congruency scoring.",
+  max_sats: "Maximum satoshi amount allowed per prediction. Together with min_sats it defines the 10%-to-100% confidence scale for a prediction.",
   weekly_vote_day: "Day of the week when the weekly vote is triggered (e.g., for reinvestment decisions).",
   weekly_vote_hour: "UTC hour on the vote day when the weekly vote message is sent to the group.",
   trading_enabled: "When enabled, the bot executes real Binance trades. When disabled, the scheduler still runs, but executions stay in dry-run mode.",

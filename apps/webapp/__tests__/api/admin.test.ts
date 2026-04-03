@@ -222,8 +222,8 @@ describe("admin API routes", () => {
       {
         id: 1,
         display_name: "Alice",
-        accuracy: 61.5,
-        congruency: 52.2,
+        accuracy: 0.615,
+        congruency: 0.522,
         balance_sats: 1234,
         profit_sats: 234,
         total_predictions: 7,
@@ -248,8 +248,8 @@ describe("admin API routes", () => {
       {
         group_name: "Friends of BTC",
         telegram_group_chat_id: "-100123",
-        average_accuracy: 61.5,
-        average_congruency: 52.2,
+        average_accuracy: 0.615,
+        average_congruency: 0.522,
         balance_sats: 1234,
         profit_sats: 234,
         total_predictions: 7,
@@ -277,8 +277,8 @@ describe("admin API routes", () => {
         user_id: 42,
         display_name: "Alice",
         platform_user_id: "123",
-        accuracy: 61.5,
-        congruency: 52.2,
+        accuracy: 0.615,
+        congruency: 0.522,
         balance_sats: 1234,
         profit_sats: 234,
         total_predictions: 7,
@@ -320,7 +320,7 @@ describe("admin API routes", () => {
     expect(body.user_id).toBeNull();
     expect(body.platform_user_id).toBe("555");
     expect(body.total_predictions).toBe(0);
-    expect(body.accuracy).toBe(50);
-    expect(body.congruency).toBe(50);
+    expect(body.accuracy).toBe(0.5);
+    expect(body.congruency).toBe(0.5);
   });
 });

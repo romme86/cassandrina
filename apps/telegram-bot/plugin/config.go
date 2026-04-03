@@ -37,11 +37,11 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
 	}
 
-	cfg.MinSats, err = getEnvInt("MIN_SATS", 100)
+	cfg.MinSats, err = getEnvInt("MIN_SATS", 1000)
 	if err != nil {
 		return nil, fmt.Errorf("MIN_SATS: %w", err)
 	}
-	cfg.MaxSats, err = getEnvInt("MAX_SATS", 5000)
+	cfg.MaxSats, err = getEnvInt("MAX_SATS", 10000)
 	if err != nil {
 		return nil, fmt.Errorf("MAX_SATS: %w", err)
 	}

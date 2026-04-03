@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { StrategyBadge } from "@/components/strategy-badge";
+import { formatScorePercent } from "@/lib/score-format";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { withBasePath } from "@/lib/base-path";
 import { LineChart } from "lucide-react";
@@ -115,7 +116,7 @@ function RoundsTable({ rounds }: { rounds: RoundWithMeta[] }) {
           </TableCell>
           <TableCell className="text-right font-mono text-xs">
             {r.confidence_score != null ? (
-              <span className="text-primary">{r.confidence_score.toFixed(1)}%</span>
+              <span className="text-primary">{formatScorePercent(r.confidence_score)}</span>
             ) : "—"}
           </TableCell>
           <TableCell>
@@ -202,7 +203,7 @@ export default async function PredictionsPage() {
         <Card className="border-white/5 bg-card/95">
           <CardContent className="pt-5">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg Confidence</p>
-            <p className="mt-2 text-3xl font-bold text-white">{avgConfidence.toFixed(1)}%</p>
+            <p className="mt-2 text-3xl font-bold text-white">{formatScorePercent(avgConfidence)}</p>
           </CardContent>
         </Card>
       </div>

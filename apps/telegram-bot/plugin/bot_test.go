@@ -55,7 +55,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestHandleRedisEventPredictionClose(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{
-		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
 	}
@@ -77,7 +77,7 @@ func TestHandleRedisEventPredictionClose(t *testing.T) {
 func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{
-		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
 	}
@@ -85,8 +85,8 @@ func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) 
 	bot.handleRedisEvent("cassandrina:prediction:open", map[string]interface{}{
 		"target_hour":     float64(8),
 		"target_timezone": "Europe/Rome",
-		"min_sats":        float64(100),
-		"max_sats":        float64(5000),
+		"min_sats":        float64(1000),
+		"max_sats":        float64(10000),
 	})
 
 	if len(gateway.messages) != 1 {
@@ -100,7 +100,7 @@ func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) 
 func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 	gateway := &fakeTelegramGateway{sendError: errors.New("dm blocked"), deepLinkURL: "https://t.me/cassandrina_bot"}
 	bot := &Bot{
-		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
 		api:             &WebappClient{},
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
@@ -116,7 +116,7 @@ func TestHandleGroupMessageStoresPendingInvoiceWhenDMFails(t *testing.T) {
 func TestHandleGroupMessageRedirectsPredictionAttemptsToPrivateChat(t *testing.T) {
 	gateway := &fakeTelegramGateway{deepLinkURL: "https://t.me/cassandrina_bot"}
 	bot := &Bot{
-		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
 	}
@@ -174,7 +174,7 @@ func TestGroupStartCommandIncludesPrivateChatLink(t *testing.T) {
 func TestHandleRedisEventPredictionOpenIncludesPrivateChatLink(t *testing.T) {
 	gateway := &fakeTelegramGateway{deepLinkURL: "https://t.me/cassandrina_bot"}
 	bot := &Bot{
-		cfg:             &Config{MinSats: 100, MaxSats: 5000, GroupChatID: -42},
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
 		telegram:        gateway,
 		pendingInvoices: make(map[int64]string),
 	}
@@ -182,8 +182,8 @@ func TestHandleRedisEventPredictionOpenIncludesPrivateChatLink(t *testing.T) {
 	bot.handleRedisEvent("cassandrina:prediction:open", map[string]interface{}{
 		"target_hour":     float64(8),
 		"target_timezone": "Europe/Rome",
-		"min_sats":        float64(100),
-		"max_sats":        float64(5000),
+		"min_sats":        float64(1000),
+		"max_sats":        float64(10000),
 	})
 
 	if len(gateway.messages) != 1 {
@@ -362,7 +362,7 @@ func TestMyStatsCommandReturnsUserStatsAndIds(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(
-				`{"user_id":42,"display_name":"Alice","platform_user_id":"123","accuracy":61.5,"congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7}`,
+				`{"user_id":42,"display_name":"Alice","platform_user_id":"123","accuracy":0.615,"congruency":0.522,"balance_sats":1234,"profit_sats":234,"total_predictions":7}`,
 			)),
 		}, nil
 	})}
@@ -621,8 +621,8 @@ func TestAdminShowUserStatsFormatsReadableMessage(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(`[
-				{"id":1,"display_name":"Alice","accuracy":61.5,"congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7},
-				{"id":2,"display_name":"Bob","accuracy":55.0,"congruency":49.0,"balance_sats":900,"profit_sats":-100,"total_predictions":4}
+				{"id":1,"display_name":"Alice","accuracy":0.615,"congruency":0.522,"balance_sats":1234,"profit_sats":234,"total_predictions":7},
+				{"id":2,"display_name":"Bob","accuracy":0.55,"congruency":0.49,"balance_sats":900,"profit_sats":-100,"total_predictions":4}
 			]`)),
 		}, nil
 	})}
@@ -668,8 +668,8 @@ func TestAdminShowGroupStatsFormatsReadableMessage(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(`[
-				{"group_name":"Friends of BTC","telegram_group_chat_id":"-100123","average_accuracy":61.5,"average_congruency":52.2,"balance_sats":1234,"profit_sats":234,"total_predictions":7,"participant_count":3},
-				{"group_name":"Weekend Traders","telegram_group_chat_id":"-100456","average_accuracy":55.0,"average_congruency":49.0,"balance_sats":900,"profit_sats":-100,"total_predictions":4,"participant_count":2}
+				{"group_name":"Friends of BTC","telegram_group_chat_id":"-100123","average_accuracy":0.615,"average_congruency":0.522,"balance_sats":1234,"profit_sats":234,"total_predictions":7,"participant_count":3},
+				{"group_name":"Weekend Traders","telegram_group_chat_id":"-100456","average_accuracy":0.55,"average_congruency":0.49,"balance_sats":900,"profit_sats":-100,"total_predictions":4,"participant_count":2}
 			]`)),
 		}, nil
 	})}
@@ -738,8 +738,8 @@ func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
 	bot := &Bot{
 		cfg: &Config{
 			GroupChatID: -42,
-			MinSats:     100,
-			MaxSats:     5000,
+			MinSats:     1000,
+			MaxSats:     10000,
 		},
 		api:             client,
 		telegram:        gateway,
@@ -747,7 +747,7 @@ func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
 	}
 
 	bot.handlePrivateMessage(context.Background(), &Message{
-		Text: "93000 97000 500",
+		Text: "93000 97000 3000",
 		Chat: Chat{ID: 123, Type: "private"},
 		From: &TelegramUser{ID: 123, Username: "alice"},
 	})

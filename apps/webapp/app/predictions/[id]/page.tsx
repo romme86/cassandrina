@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StrategyBadge } from "@/components/strategy-badge";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
+import { formatScorePercent } from "@/lib/score-format";
 import { ArrowLeft, Activity, TrendingUp } from "lucide-react";
 
 export const revalidate = 30;
@@ -100,11 +101,6 @@ export default async function RoundDetailPage({ params }: { params: { id: string
           100
         ).toFixed(2)
       : null;
-
-  const polyPct =
-    round.polymarket_probability != null
-      ? (round.polymarket_probability * 100).toFixed(1)
-      : "—";
 
   // Paid vs pending stats
   const paidCount = predictions.filter((p) => p.paid).length;
@@ -191,10 +187,10 @@ export default async function RoundDetailPage({ params }: { params: { id: string
             {round.confidence_score != null ? (
               <div>
                 <p className="text-3xl font-bold text-primary">
-                  {round.confidence_score.toFixed(1)}%
+                  {formatScorePercent(round.confidence_score)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  (Accuracy + Congruency + Polymarket {polyPct}%) / 3
+                  Average of each participant's effective confidence score
                 </p>
               </div>
             ) : (

@@ -322,6 +322,28 @@ class PostgresRepository:
             )
             return [dict(row) for row in cur.fetchall()]
 
+    def get_user_settled_prediction_history(self, user_id: int) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.predicted_low_price,
+                       p.predicted_high_price,
+                       p.sats_amount,
+                       r.btc_actual_low_price,
+                       r.btc_actual_high_price
+                FROM predictions p
+                JOIN prediction_rounds r ON r.id = p.round_id
+                WHERE p.user_id = %s
+                  AND p.paid = TRUE
+                  AND r.status = 'settled'
+                  AND r.btc_actual_low_price IS NOT NULL
+                  AND r.btc_actual_high_price IS NOT NULL
+                ORDER BY p.created_at ASC, p.id ASC
+                """,
+                (user_id,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
     def get_user_balances(self, user_ids: list[int]) -> dict[int, int]:
         if not user_ids:
             return {}
