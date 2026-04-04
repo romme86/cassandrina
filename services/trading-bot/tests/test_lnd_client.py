@@ -144,3 +144,17 @@ class TestChannelBalance:
         )
         with pytest.raises(LNDError):
             client.get_channel_balance()
+
+
+class TestTLSConfig:
+    def test_skip_verify_env_takes_precedence_over_cert_path(self, monkeypatch):
+        monkeypatch.setenv("LND_HOST", LND_HOST)
+        monkeypatch.setenv("LND_PORT", str(LND_PORT))
+        monkeypatch.setenv("LND_MACAROON_HEX", MACAROON)
+        monkeypatch.setenv("LND_TLS_SKIP_VERIFY", "true")
+        monkeypatch.setenv("LND_TLS_CERT_PATH", "/path/to/tls.cert")
+
+        client = LNDClient()
+
+        assert client.verify is False
+        assert client._session.verify is False

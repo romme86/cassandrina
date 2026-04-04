@@ -28,6 +28,10 @@ class LNDError(Exception):
     """Raised on non-2xx LND API responses or connection errors."""
 
 
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class LNDClient:
     def __init__(
         self,
@@ -41,10 +45,13 @@ class LNDClient:
         self.macaroon_hex = macaroon_hex or os.environ["LND_MACAROON_HEX"]
         self.base_url = f"https://{self.host}:{self.port}"
 
-        # verify_tls: True (system CAs), False (skip), or str (cert path)
+        # verify_tls: True (system CAs or env override), False (skip), or str (cert path)
         if verify_tls is True:
-            cert_path = os.environ.get("LND_TLS_CERT_PATH")
-            self.verify: bool | str = cert_path if cert_path else True
+            if _env_flag("LND_TLS_SKIP_VERIFY"):
+                self.verify = False
+            else:
+                cert_path = os.environ.get("LND_TLS_CERT_PATH")
+                self.verify = cert_path if cert_path else True
         else:
             self.verify = verify_tls
 
