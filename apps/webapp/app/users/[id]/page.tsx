@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { formatScorePercent } from "@/lib/score-format";
 import { ArrowLeft, Target, Brain, ListOrdered, CreditCard, Coins } from "lucide-react";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 interface UserDetailRow {
   id: number;

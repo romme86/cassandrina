@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { formatScorePercent } from "@/lib/score-format";
 import { ArrowLeft, Activity, TrendingUp } from "lucide-react";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 interface RoundPrediction {
   id: number;

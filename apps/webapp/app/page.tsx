@@ -18,7 +18,7 @@ import { BotLifecycleBadge } from "@/components/bot-lifecycle-badge";
 import { deriveBotControlStatus } from "@/lib/bot-control";
 import { formatScorePercent } from "@/lib/score-format";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 async function getOpenTrades(): Promise<Trade[]> {
   try {

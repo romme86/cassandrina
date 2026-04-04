@@ -17,7 +17,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { withBasePath } from "@/lib/base-path";
 import { LineChart } from "lucide-react";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 interface RoundWithMeta {
   id: number;

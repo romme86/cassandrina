@@ -7,7 +7,7 @@ import { ScoreBar } from "@/components/score-bar";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Trophy, Users } from "lucide-react";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 interface UserRow {
   id: number;
