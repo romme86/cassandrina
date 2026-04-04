@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"math/rand"
 	"strconv"
@@ -27,6 +28,11 @@ var wisePhrases = []string{
 	"Clarity grows when noise is allowed to pass.",
 	"Discipline beats excitement over a long enough horizon.",
 	"A calm mind sees more than a rushed one.",
+}
+
+type outboundTelegramMessage struct {
+	Text      string
+	ParseMode string
 }
 
 func NewBot(cfg *Config) (*Bot, error) {
@@ -129,7 +135,7 @@ func (b *Bot) handleGroupMessage(ctx context.Context, msg *Message) {
 func (b *Bot) handlePrivateMessage(ctx context.Context, msg *Message) {
 	pendingInvoice, ok := b.pullPendingInvoice(msg.Chat.ID)
 	if ok {
-		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, pendingInvoice, 0)
+		_ = b.telegram.SendHTMLMessage(ctx, msg.Chat.ID, pendingInvoice, 0)
 		if !isCommandMessage(msg.Text) {
 			return
 		}
@@ -179,16 +185,15 @@ func (b *Bot) submitPrediction(ctx context.Context, msg *Message, pred *Predicti
 		return
 	}
 
-	invoiceMessage := fmt.Sprintf(
-		"Your prediction is registered.\nLow by 19:00: $%.0f\nHigh by 19:00: $%.0f\nSats: %d\n\nPay this Lightning invoice to confirm:\n%s",
+	invoiceMessage := formatPredictionInvoiceMessage(
 		pred.PredictedLowPrice,
 		pred.PredictedHighPrice,
 		pred.SatsAmount,
 		resp.LightningInvoice,
 	)
-	if err := b.telegram.SendMessage(ctx, msg.From.ID, invoiceMessage, 0); err != nil {
+	if err := b.sendOutgoingMessage(ctx, msg.From.ID, invoiceMessage, 0); err != nil {
 		log.Printf("[bot] failed to DM %s: %v", senderID, err)
-		b.storePendingInvoice(msg.From.ID, invoiceMessage)
+		b.storePendingInvoice(msg.From.ID, invoiceMessage.Text)
 
 		startLink := b.telegram.DeepLink(ctx)
 		reply := "I couldn't DM your invoice yet. Start a private chat with this bot and send /start, then I'll deliver the pending invoice."
@@ -197,6 +202,18 @@ func (b *Bot) submitPrediction(ctx context.Context, msg *Message, pred *Predicti
 		}
 		_ = b.telegram.SendMessage(ctx, msg.Chat.ID, reply, replyIDForChat(msg))
 	}
+}
+
+func (b *Bot) sendOutgoingMessage(
+	ctx context.Context,
+	chatID int64,
+	message outboundTelegramMessage,
+	replyToMessageID int,
+) error {
+	if message.ParseMode == "HTML" {
+		return b.telegram.SendHTMLMessage(ctx, chatID, message.Text, replyToMessageID)
+	}
+	return b.telegram.SendMessage(ctx, chatID, message.Text, replyToMessageID)
 }
 
 func (b *Bot) predictionGroupMetadata(ctx context.Context) (string, string) {
@@ -452,8 +469,9 @@ func (b *Bot) pullPendingInvoice(chatID int64) (string, bool) {
 	message, ok := b.pendingInvoices[chatID]
 	if ok {
 		delete(b.pendingInvoices, chatID)
+		return message, true
 	}
-	return message, ok
+	return "", false
 }
 
 func intOrDefault(value float64, fallback int) int {
@@ -765,12 +783,12 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 				asFloat(tradeSummary["target_low_price"]),
 				asFloat(tradeSummary["target_high_price"]),
 			),
-				fmt.Sprintf(
-					"Entry: $%.2f | Confidence: %.1f%% | Strategy: %s",
-					asFloat(tradeSummary["entry_price"]),
-					asFloat(tradeSummary["confidence_score"])*100,
-					asString(tradeSummary["strategy"]),
-				),
+			fmt.Sprintf(
+				"Entry: $%.2f | Confidence: %.1f%% | Strategy: %s",
+				asFloat(tradeSummary["entry_price"]),
+				asFloat(tradeSummary["confidence_score"])*100,
+				asString(tradeSummary["strategy"]),
+			),
 		)
 	}
 
@@ -911,6 +929,21 @@ func formatParticipantSettlementDM(participant map[string]interface{}) string {
 		formatSats(intOrDefault(asFloat(participant["balance_sats"]), 0)),
 		randomWisePhrase(),
 	)
+}
+
+func formatPredictionInvoiceMessage(lowPrice, highPrice float64, satsAmount int, invoice string) outboundTelegramMessage {
+	escapedInvoice := html.EscapeString(strings.TrimSpace(invoice))
+	return outboundTelegramMessage{
+		Text: fmt.Sprintf(
+			"Your prediction is registered.\nLow by 19:00: $%.0f\nHigh by 19:00: $%.0f\nSats: %d\n\n<a href=\"lightning:%s\">Open in your Lightning wallet</a>\n\nLightning invoice:\n<code>%s</code>",
+			lowPrice,
+			highPrice,
+			satsAmount,
+			escapedInvoice,
+			escapedInvoice,
+		),
+		ParseMode: "HTML",
+	}
 }
 
 func formatBalanceStatsMessage(stats *BalanceStatsResponse) string {

@@ -12,6 +12,7 @@ import (
 type sentMessage struct {
 	chatID           int64
 	text             string
+	parseMode        string
 	replyToMessageID int
 }
 
@@ -28,6 +29,16 @@ func (f *fakeTelegramGateway) GetUpdates(context.Context, int, int) ([]Update, e
 
 func (f *fakeTelegramGateway) SendMessage(_ context.Context, chatID int64, text string, replyToMessageID int) error {
 	f.messages = append(f.messages, sentMessage{chatID: chatID, text: text, replyToMessageID: replyToMessageID})
+	return f.sendError
+}
+
+func (f *fakeTelegramGateway) SendHTMLMessage(_ context.Context, chatID int64, html string, replyToMessageID int) error {
+	f.messages = append(f.messages, sentMessage{
+		chatID:           chatID,
+		text:             html,
+		parseMode:        "HTML",
+		replyToMessageID: replyToMessageID,
+	})
 	return f.sendError
 }
 
@@ -755,8 +766,17 @@ func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
 	if len(gateway.messages) != 1 {
 		t.Fatalf("expected 1 invoice DM, got %d", len(gateway.messages))
 	}
-	if !contains(gateway.messages[0].text, "Pay this Lightning invoice to confirm") {
-		t.Fatalf("expected invoice instructions, got %q", gateway.messages[0].text)
+	if gateway.messages[0].parseMode != "HTML" {
+		t.Fatalf("expected HTML invoice DM, got parse mode %q", gateway.messages[0].parseMode)
+	}
+	if !contains(gateway.messages[0].text, "Open in your Lightning wallet") {
+		t.Fatalf("expected wallet deep link, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, `href="lightning:lnbc500n1..."`) {
+		t.Fatalf("expected lightning href, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "<code>lnbc500n1...</code>") {
+		t.Fatalf("expected copyable invoice fallback, got %q", gateway.messages[0].text)
 	}
 }
 
@@ -793,8 +813,17 @@ func TestSubmitPredictionAcceptsStringPredictionID(t *testing.T) {
 	if len(gateway.messages) != 1 {
 		t.Fatalf("expected 1 invoice DM, got %d", len(gateway.messages))
 	}
-	if !contains(gateway.messages[0].text, "Pay this Lightning invoice to confirm") {
-		t.Fatalf("expected invoice instructions, got %q", gateway.messages[0].text)
+	if gateway.messages[0].parseMode != "HTML" {
+		t.Fatalf("expected HTML invoice DM, got parse mode %q", gateway.messages[0].parseMode)
+	}
+	if !contains(gateway.messages[0].text, "Open in your Lightning wallet") {
+		t.Fatalf("expected wallet deep link, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, `href="lightning:lnbc500n1..."`) {
+		t.Fatalf("expected lightning href, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "<code>lnbc500n1...</code>") {
+		t.Fatalf("expected copyable invoice fallback, got %q", gateway.messages[0].text)
 	}
 }
 

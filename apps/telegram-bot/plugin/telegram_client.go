@@ -14,6 +14,7 @@ import (
 type TelegramGateway interface {
 	GetUpdates(ctx context.Context, offset int, timeoutSeconds int) ([]Update, error)
 	SendMessage(ctx context.Context, chatID int64, text string, replyToMessageID int) error
+	SendHTMLMessage(ctx context.Context, chatID int64, html string, replyToMessageID int) error
 	GetChatTitle(ctx context.Context, chatID int64) (string, error)
 	DeepLink(ctx context.Context) string
 	SyncCommands(ctx context.Context) error
@@ -95,6 +96,20 @@ func (c *TelegramClient) GetUpdates(ctx context.Context, offset int, timeoutSeco
 }
 
 func (c *TelegramClient) SendMessage(ctx context.Context, chatID int64, text string, replyToMessageID int) error {
+	return c.sendMessage(ctx, chatID, text, replyToMessageID, "")
+}
+
+func (c *TelegramClient) SendHTMLMessage(ctx context.Context, chatID int64, html string, replyToMessageID int) error {
+	return c.sendMessage(ctx, chatID, html, replyToMessageID, "HTML")
+}
+
+func (c *TelegramClient) sendMessage(
+	ctx context.Context,
+	chatID int64,
+	text string,
+	replyToMessageID int,
+	parseMode string,
+) error {
 	payload := map[string]interface{}{
 		"chat_id":                  chatID,
 		"text":                     text,
@@ -102,6 +117,9 @@ func (c *TelegramClient) SendMessage(ctx context.Context, chatID int64, text str
 	}
 	if replyToMessageID > 0 {
 		payload["reply_to_message_id"] = replyToMessageID
+	}
+	if parseMode != "" {
+		payload["parse_mode"] = parseMode
 	}
 
 	body, err := json.Marshal(payload)
