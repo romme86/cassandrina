@@ -263,7 +263,7 @@ class PostgresRepository:
             )
             return [dict(row) for row in cur.fetchall()]
 
-    def mark_invoice_paid(self, invoice_id: int, paid_at: datetime | None = None) -> None:
+    def mark_invoice_paid(self, invoice_id: int, paid_at: datetime | None = None) -> dict | None:
         paid_at = paid_at or datetime.now(timezone.utc)
         with self._cursor(commit=True) as cur:
             # Advisory lock prevents concurrent mark_invoice_paid for the same invoice
@@ -273,7 +273,7 @@ class PostgresRepository:
                 UPDATE lightning_invoices
                 SET paid = TRUE, paid_at = %s
                 WHERE id = %s AND paid = FALSE
-                RETURNING prediction_id, amount_sats
+                RETURNING prediction_id, amount_sats, paid_at
                 """,
                 (paid_at, invoice_id),
             )
@@ -296,6 +296,27 @@ class PostgresRepository:
                     """,
                     (int(row["amount_sats"]), row["prediction_id"]),
                 )
+                cur.execute(
+                    """
+                    SELECT li.id,
+                           li.amount_sats,
+                           li.paid_at,
+                           p.id AS prediction_id,
+                           p.round_id,
+                           p.telegram_group_chat_id,
+                           p.telegram_group_name,
+                           u.platform,
+                           u.platform_user_id,
+                           u.display_name
+                    FROM lightning_invoices li
+                    JOIN predictions p ON p.id = li.prediction_id
+                    JOIN users u ON u.id = p.user_id
+                    WHERE li.id = %s
+                    """,
+                    (invoice_id,),
+                )
+                return dict(cur.fetchone())
+        return None
 
     def get_paid_predictions(self, round_id: int) -> list[dict]:
         with self._cursor() as cur:

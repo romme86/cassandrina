@@ -337,3 +337,37 @@ class TestSettlement:
             call(1, actual_price=100_000, actual_low_price=99_000, actual_high_price=101_000),
             call(2, actual_price=100_000, actual_low_price=99_000, actual_high_price=101_000),
         ]
+
+
+class TestInvoicePayments:
+    def test_mark_invoice_paid_publishes_invoice_paid_event(self, scheduler, mock_db, mock_redis):
+        mock_db.mark_invoice_paid.return_value = {
+            "id": 77,
+            "prediction_id": 99,
+            "round_id": 12,
+            "amount_sats": 3000,
+            "paid_at": datetime.fromisoformat("2026-03-27T07:06:00+00:00"),
+            "platform": "telegram",
+            "platform_user_id": "123",
+            "display_name": "@alice",
+            "telegram_group_chat_id": "-42",
+            "telegram_group_name": "Friends of BTC",
+        }
+
+        scheduler._mark_invoice_paid_and_publish(77)
+
+        mock_db.mark_invoice_paid.assert_called_once_with(77)
+        mock_redis.publish.assert_called_once()
+        channel, message = mock_redis.publish.call_args.args
+        assert channel == "cassandrina:invoice:paid"
+        assert '"platform_user_id": "123"' in message
+        assert '"amount_sats": 3000' in message
+        assert '"telegram_group_name": "Friends of BTC"' in message
+
+    def test_mark_invoice_paid_skips_publish_when_invoice_already_processed(self, scheduler, mock_db, mock_redis):
+        mock_db.mark_invoice_paid.return_value = None
+
+        scheduler._mark_invoice_paid_and_publish(77)
+
+        mock_db.mark_invoice_paid.assert_called_once_with(77)
+        mock_redis.publish.assert_not_called()

@@ -22,6 +22,7 @@ type RedisSubscriber struct {
 var cassandrinaChannels = []string{
 	"cassandrina:prediction:open",
 	"cassandrina:prediction:close",
+	"cassandrina:invoice:paid",
 	"cassandrina:trade:opened",
 	"cassandrina:trade:closed",
 	"cassandrina:trade:liquidated",

@@ -358,7 +358,7 @@ class PredictionScheduler:
             invoices = self._db.get_unpaid_invoices(round_data["id"])
             for inv in invoices:
                 if inv["payment_hash"] == r_hash_hex:
-                    self._db.mark_invoice_paid(inv["id"])
+                    self._mark_invoice_paid_and_publish(inv["id"])
                     logger.info("Invoice %s marked paid via stream", inv["id"])
                     break
         except Exception:
@@ -684,7 +684,27 @@ class PredictionScheduler:
                 logger.exception("Failed to verify invoice %s", invoice["id"])
                 continue
             if result.get("settled"):
-                self._db.mark_invoice_paid(invoice["id"])
+                self._mark_invoice_paid_and_publish(invoice["id"])
+
+    def _mark_invoice_paid_and_publish(self, invoice_id: int) -> None:
+        invoice = self._db.mark_invoice_paid(invoice_id)
+        if not invoice:
+            return
+        self._publish(
+            "invoice:paid",
+            {
+                "invoice_id": invoice["id"],
+                "prediction_id": invoice["prediction_id"],
+                "round_id": invoice["round_id"],
+                "amount_sats": int(invoice["amount_sats"]),
+                "paid_at": invoice["paid_at"].isoformat() if invoice.get("paid_at") else "",
+                "platform": invoice["platform"],
+                "platform_user_id": invoice["platform_user_id"],
+                "display_name": invoice["display_name"],
+                "telegram_group_chat_id": invoice["telegram_group_chat_id"] or "",
+                "telegram_group_name": invoice["telegram_group_name"] or "",
+            },
+        )
 
     def _close_exchange_position(self, trade: dict) -> None:
         """Close the actual Binance position at settlement."""

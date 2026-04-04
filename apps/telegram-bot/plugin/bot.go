@@ -216,6 +216,17 @@ func (b *Bot) sendOutgoingMessage(
 	return b.telegram.SendMessage(ctx, chatID, message.Text, replyToMessageID)
 }
 
+func (b *Bot) handleInvoicePaidEvent(ctx context.Context, payload map[string]interface{}) {
+	if strings.TrimSpace(asString(payload["platform"])) != "telegram" {
+		return
+	}
+	chatID, err := strconv.ParseInt(strings.TrimSpace(asString(payload["platform_user_id"])), 10, 64)
+	if err != nil || chatID == 0 {
+		return
+	}
+	_ = b.telegram.SendMessage(ctx, chatID, formatInvoicePaidMessage(payload), 0)
+}
+
 func (b *Bot) predictionGroupMetadata(ctx context.Context) (string, string) {
 	chatID := strconv.FormatInt(b.cfg.GroupChatID, 10)
 	groupName := defaultTelegramGroupName(b.cfg.GroupChatID)
@@ -430,6 +441,9 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 			),
 			0,
 		)
+
+	case strings.HasSuffix(channel, "invoice:paid"):
+		b.handleInvoicePaidEvent(ctx, payload)
 
 	case strings.HasSuffix(channel, "trade:opened"):
 		return
@@ -944,6 +958,21 @@ func formatPredictionInvoiceMessage(lowPrice, highPrice float64, satsAmount int,
 		),
 		ParseMode: "HTML",
 	}
+}
+
+func formatInvoicePaidMessage(payload map[string]interface{}) string {
+	groupName := strings.TrimSpace(asString(payload["telegram_group_name"]))
+	if groupName != "" {
+		return fmt.Sprintf(
+			"Invoice paid and your prediction is confirmed.\n\nGroup: %s\nStake: %s",
+			groupName,
+			formatSats(intOrDefault(asFloat(payload["amount_sats"]), 0)),
+		)
+	}
+	return fmt.Sprintf(
+		"Invoice paid and your prediction is confirmed.\n\nStake: %s",
+		formatSats(intOrDefault(asFloat(payload["amount_sats"]), 0)),
+	)
 }
 
 func formatBalanceStatsMessage(stats *BalanceStatsResponse) string {

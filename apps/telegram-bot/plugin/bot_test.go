@@ -205,6 +205,38 @@ func TestHandleRedisEventPredictionOpenIncludesPrivateChatLink(t *testing.T) {
 	}
 }
 
+func TestHandleRedisEventInvoicePaidSendsTelegramConfirmationDM(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleRedisEvent("cassandrina:invoice:paid", map[string]interface{}{
+		"platform":            "telegram",
+		"platform_user_id":    "123",
+		"amount_sats":         float64(3000),
+		"telegram_group_name": "Friends of BTC",
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 invoice confirmation DM, got %d", len(gateway.messages))
+	}
+	if gateway.messages[0].chatID != 123 {
+		t.Fatalf("expected DM to Telegram user 123, got %d", gateway.messages[0].chatID)
+	}
+	if !contains(gateway.messages[0].text, "Invoice paid and your prediction is confirmed.") {
+		t.Fatalf("expected confirmation text, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Group: Friends of BTC") {
+		t.Fatalf("expected group name in confirmation, got %q", gateway.messages[0].text)
+	}
+	if !contains(gateway.messages[0].text, "Stake: 3,000 sats") {
+		t.Fatalf("expected stake in confirmation, got %q", gateway.messages[0].text)
+	}
+}
+
 func TestHandlePrivateMessageStartShowsAdminCommandsForAdmin(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{
