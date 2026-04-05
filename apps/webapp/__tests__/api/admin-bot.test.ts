@@ -99,4 +99,30 @@ describe("POST /api/admin/bot", () => {
       tradingEnabled: false,
     });
   });
+
+  test("writes recap request token without changing desired state", async () => {
+    const heartbeatAt = new Date().toISOString();
+    mockQuery.mockResolvedValueOnce([
+      { key: "bot_desired_state", value: "running" },
+      { key: "bot_actual_state", value: "running" },
+      { key: "bot_heartbeat_at", value: heartbeatAt },
+      { key: "trading_enabled", value: "true" },
+    ]);
+
+    const res = await POST(makeRequest({ action: "send_polymarket_recap" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockWithTransaction).toHaveBeenCalledTimes(1);
+    expect(txQuery).toHaveBeenCalledTimes(1);
+    expect(txQuery.mock.calls[0][1]?.[0]).toBe("polymarket_recap_request_token");
+    expect(body.requestedAction).toBe("send_polymarket_recap");
+    expect(body.status).toEqual({
+      desiredState: "running",
+      actualState: "running",
+      heartbeatAt,
+      isResponsive: true,
+      tradingEnabled: true,
+    });
+  });
 });

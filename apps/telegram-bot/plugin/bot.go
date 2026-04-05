@@ -402,6 +402,22 @@ func (b *Bot) handleCommand(ctx context.Context, msg *Message) bool {
 		}
 		b.sendChunkedMessages(ctx, msg.Chat.ID, formatGroupStatsMessages(rows), replyIDForChat(msg))
 		return true
+	case "/send_polymarket_recap":
+		if !b.requireAdmin(ctx, msg) || !b.requireAdminAPI(ctx, msg) {
+			return true
+		}
+		_, err := b.api.TriggerPolymarketRecap()
+		if err != nil {
+			b.replyAPIError(ctx, msg, err)
+			return true
+		}
+		_ = b.telegram.SendMessage(
+			ctx,
+			msg.Chat.ID,
+			"Requested a Polymarket BTC recap. If the trading bot is running, it should post the recap to the group shortly.",
+			replyIDForChat(msg),
+		)
+		return true
 	default:
 		return false
 	}
@@ -620,7 +636,7 @@ func startMessage(includeAdmin bool) string {
 	if !includeAdmin {
 		return text
 	}
-	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats"
+	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats\n/send_polymarket_recap"
 }
 
 func helpMessage(includeAdmin bool) string {
@@ -628,7 +644,7 @@ func helpMessage(includeAdmin bool) string {
 	if !includeAdmin {
 		return text
 	}
-	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats"
+	return text + "\n\nAdmin commands:\n/start_prediction <minutes>\n/show_balance_stats\n/show_user_stats\n/show_group_stats\n/send_polymarket_recap"
 }
 
 func formatHealthMessage(health *HealthResponse, hasAdminAPI bool) string {

@@ -95,6 +95,7 @@ def main() -> None:
 
     scheduler_running = False
     last_restart_token = ""
+    last_polymarket_recap_token = ""
     last_actual_state = "offline"
     last_heartbeat_write = 0.0
 
@@ -114,10 +115,11 @@ def main() -> None:
         last_heartbeat_write = now
 
     def reconcile_scheduler_state() -> None:
-        nonlocal scheduler_running, last_restart_token
+        nonlocal scheduler_running, last_restart_token, last_polymarket_recap_token
         bot_config = db.get_bot_config()
         desired_state = _normalize_bot_state(bot_config.get("bot_desired_state"), "running")
         restart_token = bot_config.get("bot_restart_token", "")
+        polymarket_recap_token = bot_config.get("polymarket_recap_request_token", "")
 
         if desired_state == "running":
             should_restart = bool(restart_token and restart_token != last_restart_token)
@@ -130,6 +132,14 @@ def main() -> None:
                 scheduler_running = True
             if should_restart:
                 last_restart_token = restart_token
+            should_send_polymarket_recap = bool(
+                polymarket_recap_token
+                and polymarket_recap_token != last_polymarket_recap_token
+            )
+            if should_send_polymarket_recap:
+                logger.info("Polymarket recap request received; sending recap")
+                scheduler.send_polymarket_bitcoin_recap()
+                last_polymarket_recap_token = polymarket_recap_token
             update_runtime_state("running", force=should_restart)
             return
 

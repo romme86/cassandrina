@@ -860,6 +860,56 @@ func TestAdminShowGroupStatsFormatsReadableMessage(t *testing.T) {
 	}
 }
 
+func TestAdminSendPolymarketRecapCommandRequestsBotAction(t *testing.T) {
+	client := NewWebappClient("http://cassandrina.test")
+	client.adminSecret = "super-secret"
+	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/admin/bot" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if got := r.Header.Get(adminSecretHeader); got != "super-secret" {
+			t.Fatalf("expected admin secret header, got %q", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if !contains(string(body), `"action":"send_polymarket_recap"`) {
+			t.Fatalf("unexpected request body %q", string(body))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"requestedAction":"send_polymarket_recap","status":{"desiredState":"running","actualState":"running","heartbeatAt":"2026-04-05T08:00:00Z","isResponsive":true,"tradingEnabled":true}}`,
+			)),
+		}, nil
+	})}
+
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg: &Config{
+			AdminUserIDs: map[int64]struct{}{123: {}},
+		},
+		api:             client,
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handlePrivateMessage(context.Background(), &Message{
+		Text: "/send_polymarket_recap",
+		Chat: Chat{ID: 123, Type: "private"},
+		From: &TelegramUser{ID: 123, Username: "admin"},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 admin reply, got %d", len(gateway.messages))
+	}
+	if !contains(gateway.messages[0].text, "Requested a Polymarket BTC recap") {
+		t.Fatalf("unexpected message %q", gateway.messages[0].text)
+	}
+}
+
 func TestSubmitPredictionIncludesTelegramGroupMetadata(t *testing.T) {
 	client := NewWebappClient("http://cassandrina.test")
 	client.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {

@@ -7,7 +7,7 @@ import { deriveBotControlStatus } from "@/lib/bot-control";
 export const dynamic = "force-dynamic";
 
 const BotActionSchema = z.object({
-  action: z.enum(["restart", "pause", "stop"]),
+  action: z.enum(["restart", "pause", "stop", "send_polymarket_recap"]),
 });
 
 async function loadBotConfig(): Promise<Record<string, string>> {
@@ -61,12 +61,15 @@ export async function POST(request: NextRequest) {
   }
 
   const action = parsed.data.action;
-  const updates: Record<string, string> = {
-    bot_desired_state: action === "restart" ? "running" : action,
-  };
+  const updates: Record<string, string> = {};
 
   if (action === "restart") {
+    updates.bot_desired_state = "running";
     updates.bot_restart_token = new Date().toISOString();
+  } else if (action === "pause" || action === "stop") {
+    updates.bot_desired_state = action;
+  } else if (action === "send_polymarket_recap") {
+    updates.polymarket_recap_request_token = new Date().toISOString();
   }
 
   await upsertBotConfig(updates);

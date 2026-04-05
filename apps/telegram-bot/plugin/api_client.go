@@ -65,6 +65,10 @@ type StartPredictionRoundResponse struct {
 	Minutes         int    `json:"minutes"`
 }
 
+type BotActionResponse struct {
+	RequestedAction string `json:"requestedAction"`
+}
+
 type BalanceStatsResponse struct {
 	RoundID          int    `json:"round_id"`
 	QuestionDate     string `json:"question_date"`
@@ -221,6 +225,25 @@ func (c *WebappClient) StartPredictionRound(minutes int) (*StartPredictionRoundR
 	}
 
 	var result StartPredictionRoundResponse
+	if err := c.doJSON(request, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (c *WebappClient) TriggerPolymarketRecap() (*BotActionResponse, error) {
+	request, err := c.newJSONRequest(
+		http.MethodPost,
+		"/api/admin/bot",
+		map[string]string{"action": "send_polymarket_recap"},
+		true,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var result BotActionResponse
 	if err := c.doJSON(request, &result); err != nil {
 		return nil, err
 	}
