@@ -137,9 +137,12 @@ def main() -> None:
                 and polymarket_recap_token != last_polymarket_recap_token
             )
             if should_send_polymarket_recap:
-                logger.info("Polymarket recap request received; sending recap")
-                scheduler.send_polymarket_bitcoin_recap()
                 last_polymarket_recap_token = polymarket_recap_token
+                try:
+                    logger.info("Polymarket recap request received; sending recap")
+                    scheduler.send_polymarket_bitcoin_recap()
+                except Exception:
+                    logger.exception("Failed to send requested Polymarket recap")
             update_runtime_state("running", force=should_restart)
             return
 
