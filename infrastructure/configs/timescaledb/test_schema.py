@@ -77,6 +77,9 @@ class TestTableExistence:
     def test_bot_config_table_exists(self, cur):
         assert table_exists(cur, "bot_config")
 
+    def test_polymarket_bitcoiners_table_exists(self, cur):
+        assert table_exists(cur, "polymarket_bitcoiners")
+
 
 # ── Users columns ────────────────────────────────────────────
 
@@ -181,6 +184,17 @@ class TestBalanceEntriesTable:
 
     def test_is_hypertable(self, cur):
         assert is_hypertable(cur, "balance_entries")
+
+
+class TestPolymarketBitcoinersTable:
+    def test_has_snapshot_date(self, cur):
+        assert column_exists(cur, "polymarket_bitcoiners", "snapshot_date")
+
+    def test_has_market_condition_id(self, cur):
+        assert column_exists(cur, "polymarket_bitcoiners", "market_condition_id")
+
+    def test_has_proxy_wallet(self, cur):
+        assert column_exists(cur, "polymarket_bitcoiners", "proxy_wallet")
 
 
 # ── Bot config defaults ──────────────────────────────────────

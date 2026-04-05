@@ -465,6 +465,14 @@ func (b *Bot) handleRedisEvent(channel string, payload map[string]interface{}) {
 			0,
 		)
 
+	case strings.HasSuffix(channel, "polymarket:bitcoin:recap"):
+		b.sendChunkedMessages(
+			ctx,
+			b.cfg.GroupChatID,
+			formatPolymarketBitcoinRecapMessages(payload),
+			0,
+		)
+
 	default:
 		log.Printf("[bot] unhandled event: %s", channel)
 	}
@@ -511,14 +519,20 @@ func asObjectMap(value interface{}) map[string]interface{} {
 }
 
 func asObjectSlice(value interface{}) []map[string]interface{} {
-	raw, _ := value.([]interface{})
-	items := make([]map[string]interface{}, 0, len(raw))
-	for _, item := range raw {
-		if parsed, ok := item.(map[string]interface{}); ok {
-			items = append(items, parsed)
+	switch typed := value.(type) {
+	case []map[string]interface{}:
+		return typed
+	case []interface{}:
+		items := make([]map[string]interface{}, 0, len(typed))
+		for _, item := range typed {
+			if parsed, ok := item.(map[string]interface{}); ok {
+				items = append(items, parsed)
+			}
 		}
+		return items
+	default:
+		return nil
 	}
-	return items
 }
 
 func timeZoneLabel(value string) string {
@@ -602,7 +616,7 @@ func replyIDForChat(msg *Message) int {
 }
 
 func startMessage(includeAdmin bool) string {
-	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nCassandrina will reply here with your Lightning invoice. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
+	text := "Send your prediction to Cassandrina here in private chat using:\n<lowest BTC price until 20:00 CET> <highest BTC price until 20:00 CET> <sats>\n\nExample:\n82000 84500 3000\n\nCassandrina will reply here with your Lightning invoice. If you had a pending invoice, it will appear here automatically.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
 	if !includeAdmin {
 		return text
 	}
@@ -610,7 +624,7 @@ func startMessage(includeAdmin bool) string {
 }
 
 func helpMessage(includeAdmin bool) string {
-	text := "Cassandrina bot help\n\nHow it works:\n1. At 08:00 CET Cassandrina posts in the group that the prediction window is open.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Example: 82000 84500 3000\n4. Cassandrina replies with a Lightning invoice in private.\n5. Pay the invoice before the window closes.\n6. When the window closes, the group gets the confirmed predictions plus the market position summary.\n7. At 19:00 CET Cassandrina settles the position, posts the result in the group, and sends each participant a private balance update.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
+	text := "Cassandrina bot help\n\nHow it works:\n1. At 08:00 CET Cassandrina posts in the group that the prediction window is open.\n2. Send your prediction to Cassandrina in private as: <lowest> <highest> <sats>\n3. Example: 82000 84500 3000\n4. Cassandrina replies with a Lightning invoice in private.\n5. Pay the invoice before the window closes.\n6. When the window closes, the group gets the confirmed predictions plus the market position summary.\n7. At 20:00 CET Cassandrina settles the position, posts the result in the group, and sends each participant a private balance update.\n\nUser commands:\n/start\n/help\n/my_stats\n/health\n/status\n/prediction_status\n/position_status"
 	if !includeAdmin {
 		return text
 	}
@@ -738,7 +752,7 @@ func formatPredictionOpenMessage(questionDate string, targetHour int, targetTime
 		closeLabel = formatLocalTime(closeAt)
 	}
 	message := fmt.Sprintf(
-		"Prediction window is open\n\nCassandrina is collecting private BTC predictions for %02d:00 %s %s.\nWindow closes at: %s\n\nSend Cassandrina a private message in this format:\n<lowest BTC price until 19:00 CET> <highest BTC price until 19:00 CET> <sats>\nExample: 82000 84500 3000\n\nMin: %d sats | Max: %d sats",
+		"Prediction window is open\n\nCassandrina is collecting private BTC predictions for %02d:00 %s %s.\nWindow closes at: %s\n\nSend Cassandrina a private message in this format:\n<lowest BTC price until 20:00 CET> <highest BTC price until 20:00 CET> <sats>\nExample: 82000 84500 3000\n\nMin: %d sats | Max: %d sats",
 		targetHour,
 		timeZoneLabel(targetTimeZone),
 		dateLabel,
@@ -781,7 +795,7 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 	if len(tradeSummary) > 0 {
 		mode := "live"
 		if dryRun, ok := tradeSummary["dry_run"].(bool); ok && dryRun {
-			mode = "dry run"
+			mode = "simulated"
 		}
 		lines = append(
 			lines,
@@ -804,8 +818,137 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 				asString(tradeSummary["strategy"]),
 			),
 		)
+		if probability, ok := tradeSummary["polymarket_probability"].(float64); ok {
+			polymarketLine := fmt.Sprintf("Polymarket: %.1f%%", probability*100)
+			if source := strings.TrimSpace(asString(tradeSummary["polymarket_source"])); source != "" && source != "unavailable" {
+				polymarketLine += fmt.Sprintf(" (%s)", source)
+			}
+			if influence, ok := tradeSummary["polymarket_influence_pct"].(float64); ok {
+				polymarketLine += fmt.Sprintf(" | Influence: %.1f%%", influence)
+			}
+			lines = append(lines, polymarketLine)
+		}
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+func formatPolymarketBitcoinRecapMessages(payload map[string]interface{}) []string {
+	lines := []string{
+		"Polymarket BTC recap",
+		"",
+	}
+	if snapshotAt := strings.TrimSpace(asString(payload["snapshot_at"])); snapshotAt != "" {
+		lines = append(lines, fmt.Sprintf("Snapshot: %s", formatLocalTime(snapshotAt)))
+	}
+	lines = append(
+		lines,
+		fmt.Sprintf("Open BTC markets: %d", intOrDefault(asFloat(payload["market_count"]), 0)),
+		fmt.Sprintf("Participants stored today: %d", intOrDefault(asFloat(payload["stored_participant_count"]), 0)),
+		"",
+		"Implied price prediction:",
+	)
+
+	pricePredictions := asObjectMap(payload["price_predictions"])
+	lines = append(lines, formatPricePredictionLine("Day", asObjectMap(pricePredictions["day"])))
+	lines = append(lines, formatPricePredictionLine("Week", asObjectMap(pricePredictions["week"])))
+	lines = append(lines, formatPricePredictionLine("Month", asObjectMap(pricePredictions["month"])))
+
+	markets := asObjectSlice(payload["markets"])
+	if len(markets) == 0 {
+		lines = append(lines, "", "No open BTC-related Polymarket markets found.")
+		return []string{strings.Join(lines, "\n")}
+	}
+
+	chunks := []string{strings.Join(lines, "\n")}
+	current := "Open markets"
+	for index, market := range markets {
+		entry := formatPolymarketMarketEntry(index+1, market)
+		if len(current)+len(entry) > 3500 {
+			chunks = append(chunks, current)
+			current = "Open markets (cont.)" + entry
+			continue
+		}
+		current += entry
+	}
+	chunks = append(chunks, current)
+	return chunks
+}
+
+func formatPricePredictionLine(label string, prediction map[string]interface{}) string {
+	if len(prediction) == 0 {
+		return fmt.Sprintf("- %s: unavailable", label)
+	}
+	estimate := asFloat(prediction["estimated_price"])
+	thresholdCount := intOrDefault(asFloat(prediction["threshold_market_count"]), 0)
+	windowDays := intOrDefault(asFloat(prediction["window_days"]), 0)
+	if estimate <= 0 || thresholdCount == 0 {
+		return fmt.Sprintf("- %s: unavailable (%d threshold markets in the next %dd)", label, thresholdCount, windowDays)
+	}
+	return fmt.Sprintf(
+		"- %s: %s from %d threshold markets in the next %dd",
+		label,
+		formatUSD(estimate),
+		thresholdCount,
+		windowDays,
+	)
+}
+
+func formatPolymarketMarketEntry(rank int, market map[string]interface{}) string {
+	lines := []string{
+		"",
+		"",
+		fmt.Sprintf("%d. %s", rank, strings.TrimSpace(asString(market["question"]))),
+	}
+	if eventTitle := strings.TrimSpace(asString(market["event_title"])); eventTitle != "" {
+		lines = append(lines, fmt.Sprintf("Event: %s", eventTitle))
+	}
+	if endDate := strings.TrimSpace(asString(market["end_date"])); endDate != "" {
+		lines = append(lines, fmt.Sprintf("Ends: %s", formatLocalTime(endDate)))
+	}
+
+	outcomes := asObjectSlice(market["outcomes"])
+	if len(outcomes) > 0 {
+		parts := make([]string, 0, len(outcomes))
+		for _, outcome := range outcomes {
+			label := strings.TrimSpace(asString(outcome["label"]))
+			price := asFloat(outcome["price"])
+			if label == "" {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s %.1f%%", label, price*100))
+		}
+		if len(parts) > 0 {
+			lines = append(lines, "Outcomes: "+strings.Join(parts, " | "))
+		}
+	}
+
+	stats := []string{
+		fmt.Sprintf("24h vol %s", formatCompactUSD(asFloat(market["volume24hr"]))),
+		fmt.Sprintf("liq %s", formatCompactUSD(asFloat(market["liquidity"]))),
+		fmt.Sprintf("total vol %s", formatCompactUSD(asFloat(market["volume"]))),
+	}
+	lines = append(lines, "Stats: "+strings.Join(stats, " | "))
+
+	lastTradePrice := asFloat(market["last_trade_price"])
+	bestBid := asFloat(market["best_bid"])
+	bestAsk := asFloat(market["best_ask"])
+	if lastTradePrice > 0 || bestBid > 0 || bestAsk > 0 {
+		lines = append(
+			lines,
+			fmt.Sprintf(
+				"Market: last %.2f | bid %.2f | ask %.2f",
+				lastTradePrice,
+				bestBid,
+				bestAsk,
+			),
+		)
+	}
+
+	participantCount := intOrDefault(asFloat(market["participant_count"]), 0)
+	if participantCount > 0 {
+		lines = append(lines, fmt.Sprintf("Tracked participants: %d", participantCount))
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -949,7 +1092,7 @@ func formatPredictionInvoiceMessage(lowPrice, highPrice float64, satsAmount int,
 	escapedInvoice := html.EscapeString(strings.TrimSpace(invoice))
 	return outboundTelegramMessage{
 		Text: fmt.Sprintf(
-			"Your prediction is registered.\nLow by 19:00: $%.0f\nHigh by 19:00: $%.0f\nSats: %d\n\n<a href=\"lightning:%s\">Open in your Lightning wallet</a>\n\nLightning invoice:\n<code>%s</code>",
+			"Your prediction is registered.\nLow by 20:00: $%.0f\nHigh by 20:00: $%.0f\nSats: %d\n\n<a href=\"lightning:%s\">Open in your Lightning wallet</a>\n\nLightning invoice:\n<code>%s</code>",
 			lowPrice,
 			highPrice,
 			satsAmount,
@@ -1136,6 +1279,51 @@ func formatInt(value int) string {
 		}
 	}
 	return builder.String()
+}
+
+func formatUSD(value float64) string {
+	return fmt.Sprintf("$%s", formatFloat(value, 0))
+}
+
+func formatCompactUSD(value float64) string {
+	absValue := value
+	if absValue < 0 {
+		absValue = -absValue
+	}
+	switch {
+	case absValue >= 1_000_000_000:
+		return fmt.Sprintf("$%.2fB", value/1_000_000_000)
+	case absValue >= 1_000_000:
+		return fmt.Sprintf("$%.2fM", value/1_000_000)
+	case absValue >= 1_000:
+		return fmt.Sprintf("$%.1fK", value/1_000)
+	default:
+		return fmt.Sprintf("$%s", formatFloat(value, 0))
+	}
+}
+
+func formatFloat(value float64, decimals int) string {
+	formatted := strconv.FormatFloat(value, 'f', decimals, 64)
+	negative := strings.HasPrefix(formatted, "-")
+	if negative {
+		formatted = formatted[1:]
+	}
+	parts := strings.SplitN(formatted, ".", 2)
+	intPart, err := strconv.Atoi(parts[0])
+	if err != nil {
+		if negative {
+			return "-" + formatted
+		}
+		return formatted
+	}
+	result := formatInt(intPart)
+	if negative {
+		result = "-" + result
+	}
+	if len(parts) == 2 && decimals > 0 {
+		return result + "." + parts[1]
+	}
+	return result
 }
 
 func telegramDisplayName(user *TelegramUser) string {

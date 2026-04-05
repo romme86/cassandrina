@@ -20,6 +20,35 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ============================================================
+-- Polymarket BTC participant snapshots
+-- ============================================================
+CREATE TABLE IF NOT EXISTS polymarket_bitcoiners (
+    id                  BIGSERIAL PRIMARY KEY,
+    snapshot_date       DATE NOT NULL,
+    captured_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    market_condition_id TEXT NOT NULL,
+    market_slug         TEXT,
+    market_question     TEXT NOT NULL,
+    market_end_date     TIMESTAMPTZ,
+    proxy_wallet        TEXT NOT NULL,
+    display_name        TEXT,
+    profile_image       TEXT,
+    verified            BOOL NOT NULL DEFAULT FALSE,
+    outcomes            TEXT[] NOT NULL DEFAULT '{}',
+    total_bought        FLOAT NOT NULL DEFAULT 0,
+    avg_price           FLOAT,
+    size                FLOAT NOT NULL DEFAULT 0,
+    current_price       FLOAT,
+    current_value       FLOAT NOT NULL DEFAULT 0,
+    cash_pnl            FLOAT NOT NULL DEFAULT 0,
+    realized_pnl        FLOAT NOT NULL DEFAULT 0,
+    total_pnl           FLOAT NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (snapshot_date, market_condition_id, proxy_wallet)
+);
+
+-- ============================================================
 -- Daily prediction rounds
 -- ============================================================
 CREATE TABLE IF NOT EXISTS prediction_rounds (
@@ -193,6 +222,12 @@ CREATE INDEX IF NOT EXISTS idx_predictions_paid ON predictions(paid);
 CREATE INDEX IF NOT EXISTS idx_predictions_telegram_group_chat_id ON predictions(telegram_group_chat_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_telegram_group_name ON predictions(telegram_group_name);
 CREATE INDEX IF NOT EXISTS idx_prediction_rounds_question_date ON prediction_rounds(question_date);
+CREATE INDEX IF NOT EXISTS idx_polymarket_bitcoiners_snapshot_date
+    ON polymarket_bitcoiners(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_polymarket_bitcoiners_market_condition_id
+    ON polymarket_bitcoiners(market_condition_id);
+CREATE INDEX IF NOT EXISTS idx_polymarket_bitcoiners_proxy_wallet
+    ON polymarket_bitcoiners(proxy_wallet);
 CREATE INDEX IF NOT EXISTS idx_trades_round_id ON trades(round_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_balance_entries_user_id ON balance_entries(user_id);

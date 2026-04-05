@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
   ]);
 
   const config = Object.fromEntries(configRows.map((row) => [row.key, row.value]));
-  const targetHour = Number(config.prediction_target_hour ?? "19");
+  const targetHour = Number(config.prediction_target_hour ?? "20");
   const minSats = Number(config.min_sats ?? "1000");
   const maxSats = Number(config.max_sats ?? "10000");
   const timeZone = process.env.SCHEDULER_TIMEZONE ?? "Europe/Zurich";

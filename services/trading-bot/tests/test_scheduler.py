@@ -18,7 +18,7 @@ def config():
     return SchedulerConfig(
         scheduler_timezone="Europe/Rome",
         prediction_open_hour=8,
-        prediction_target_hour=16,
+        prediction_target_hour=20,
         prediction_window_hours=6,
         weekly_vote_day=6,
         weekly_vote_hour=20,
@@ -37,6 +37,7 @@ def mock_redis():
 @pytest.fixture
 def mock_db():
     db = MagicMock()
+    db.all_current_round_group_members_paid.return_value = False
     db.get_paid_predictions_count.return_value = 0
     db.get_round_status.return_value = RoundStatus.OPEN
     db.get_open_round.return_value = None
@@ -48,7 +49,7 @@ def mock_db():
     db.create_round.return_value = {
         "id": 1,
         "question_date": "2026-03-01",
-        "target_hour": 16,
+        "target_hour": 20,
     }
     db.get_bot_config.return_value = {}
     db.connection.return_value = nullcontext()
@@ -88,12 +89,108 @@ class TestPredictionWindowClose:
         scheduler.try_close_window(round_id=1)
         mock_db.close_round.assert_not_called()
 
+    @freeze_time("2026-03-01 12:30:00 UTC")
+    def test_job_does_not_close_before_14_local_without_full_group_completion(self, scheduler, mock_db):
+        mock_db.get_open_round.return_value = {
+            "id": 1,
+            "question_date": "2026-03-01",
+            "close_at": datetime.fromisoformat("2026-03-01T18:00:00+00:00"),
+        }
+        mock_db.get_paid_predictions_count.return_value = 1
+        mock_db.all_current_round_group_members_paid.return_value = False
+
+        scheduler._job_try_close()
+
+        mock_db.close_round.assert_not_called()
+
+    @freeze_time("2026-03-01 12:30:00 UTC")
+    def test_job_closes_before_14_local_when_all_group_members_paid(self, scheduler, mock_db):
+        mock_db.get_open_round.return_value = {
+            "id": 1,
+            "question_date": "2026-03-01",
+            "close_at": datetime.fromisoformat("2026-03-01T18:00:00+00:00"),
+        }
+        mock_db.get_paid_predictions_count.return_value = 1
+        mock_db.all_current_round_group_members_paid.return_value = True
+
+        scheduler._job_try_close()
+
+        mock_db.close_round.assert_called_once_with(1)
+
+    @freeze_time("2026-03-01 13:30:00 UTC")
+    def test_job_closes_after_14_local_on_paid_threshold_even_if_group_is_incomplete(self, scheduler, mock_db):
+        mock_db.get_open_round.return_value = {
+            "id": 1,
+            "question_date": "2026-03-01",
+            "close_at": datetime.fromisoformat("2026-03-01T18:00:00+00:00"),
+        }
+        mock_db.get_paid_predictions_count.return_value = 1
+        mock_db.all_current_round_group_members_paid.return_value = False
+
+        scheduler._job_try_close()
+
+        mock_db.close_round.assert_called_once_with(1)
+
 
 class TestWeeklyVote:
     def test_sends_weekly_vote_event(self, scheduler, mock_redis):
         scheduler.send_weekly_vote()
         channel, _ = mock_redis.publish.call_args.args
         assert "weekly:vote" in channel
+
+
+class TestPolymarketRecap:
+    @freeze_time("2026-04-05 14:00:00 UTC")
+    def test_sends_bitcoin_recap_and_stores_participants(self, config, mock_redis, mock_db):
+        polymarket = MagicMock()
+        polymarket.build_bitcoin_market_recap.return_value = {
+            "snapshot_at": "2026-04-05T14:00:00+00:00",
+            "market_count": 1,
+            "markets": [
+                {
+                    "condition_id": "cond-1",
+                    "question": "Will Bitcoin be above $100,000 by April 5, 2026?",
+                    "slug": "btc-above-100k-april-5",
+                    "end_date": "2026-04-05T23:59:59+00:00",
+                }
+            ],
+            "price_predictions": {
+                "day": {"window_days": 1, "threshold_market_count": 1, "estimated_price": 100000.0},
+                "week": {"window_days": 7, "threshold_market_count": 1, "estimated_price": 100000.0},
+                "month": {"window_days": 30, "threshold_market_count": 1, "estimated_price": 100000.0},
+            },
+        }
+        polymarket.fetch_market_participants.return_value = [
+            {
+                "proxy_wallet": "0xabc",
+                "display_name": "Satoshi",
+                "outcomes": ["Yes"],
+                "total_bought": 42.0,
+                "avg_price": 0.61,
+                "size": 68.0,
+                "current_price": 0.64,
+                "current_value": 43.52,
+                "cash_pnl": 2.0,
+                "realized_pnl": 1.0,
+                "total_pnl": 3.0,
+            }
+        ]
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            polymarket_client=polymarket,
+        )
+
+        scheduler.send_polymarket_bitcoin_recap()
+
+        polymarket.build_bitcoin_market_recap.assert_called_once()
+        polymarket.fetch_market_participants.assert_called_once_with("cond-1")
+        mock_db.replace_polymarket_bitcoiners.assert_called_once()
+        channel, message = mock_redis.publish.call_args.args
+        assert channel == "cassandrina:polymarket:bitcoin:recap"
+        assert '"market_count": 1' in message
+        assert '"stored_participant_count": 1' in message
 
 
 class TestTradeExecution:
@@ -211,10 +308,100 @@ class TestTradeExecution:
         assert result is not None
         assert result["confidence_score"] == pytest.approx(0.5497152)
         assert result["strategy"] == "C"
+        assert result["polymarket_source"] == "signal"
         assert result["polymarket_influence_pct"] == pytest.approx(17.52)
         polymarket.build_market_signal.assert_called_once()
         _, kwargs = mock_db.update_round_analysis.call_args
         assert kwargs["polymarket_probability"] == pytest.approx(0.2)
+
+    def test_polymarket_probability_fallback_still_modifies_confidence(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_000
+        polymarket = MagicMock()
+        polymarket.build_market_signal.return_value = PolymarketSignal(available=False)
+        polymarket.fetch_btc_probability.return_value = 0.8
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            polymarket_client=polymarket,
+            market_data_client=market_data,
+        )
+        mock_db.get_bot_config.return_value = {
+            "min_sats": "1000",
+            "max_sats": "10000",
+            "trading_enabled": "false",
+        }
+        mock_db.get_paid_predictions.return_value = [
+            {
+                "user_id": 1,
+                "predicted_low_price": 109_000,
+                "predicted_high_price": 111_000,
+                "predicted_price": 110_000,
+                "sats_amount": 3400,
+                "accuracy": 0.5,
+                "congruency": 0.5,
+            }
+        ]
+        mock_db.create_trade.return_value = {
+            "id": 12,
+            "strategy": "D",
+            "direction": "long",
+            "entry_price": 100_000,
+            "target_price": 110_000,
+            "sats_deployed": 3400,
+        }
+        mock_db.get_weekly_vote_results.return_value = {}
+
+        result = scheduler._execute_trade_for_round(1)
+
+        assert result is not None
+        assert result["confidence_score"] == pytest.approx(0.44672)
+        assert result["strategy"] == "D"
+        assert result["polymarket_source"] == "probability"
+        assert result["polymarket_probability"] == pytest.approx(0.8)
+        assert result["polymarket_influence_pct"] == pytest.approx(23.2)
+        polymarket.fetch_btc_probability.assert_called_once()
+
+    def test_reports_dry_run_when_trading_enabled_but_executor_is_missing(self, config, mock_redis, mock_db):
+        market_data = MagicMock()
+        market_data.get_btc_price.return_value = 100_000
+        scheduler = PredictionScheduler(
+            config=config,
+            redis_client=mock_redis,
+            db=mock_db,
+            market_data_client=market_data,
+        )
+        mock_db.get_bot_config.return_value = {
+            "min_sats": "1000",
+            "max_sats": "10000",
+            "trading_enabled": "true",
+        }
+        mock_db.get_paid_predictions.return_value = [
+            {
+                "user_id": 1,
+                "predicted_low_price": 109_000,
+                "predicted_high_price": 111_000,
+                "predicted_price": 110_000,
+                "sats_amount": 3400,
+                "accuracy": 0.5,
+                "congruency": 0.5,
+            }
+        ]
+        mock_db.create_trade.return_value = {
+            "id": 13,
+            "strategy": "E",
+            "direction": "long",
+            "entry_price": 100_000,
+            "target_price": 110_000,
+            "sats_deployed": 3400,
+        }
+        mock_db.get_weekly_vote_results.return_value = {}
+
+        result = scheduler._execute_trade_for_round(1)
+
+        assert result is not None
+        assert result["dry_run"] is True
 
     @freeze_time("2026-03-02 09:00:00")
     def test_weekly_vote_adjusts_round_confidence_from_weighted_results(self, config, mock_redis, mock_db):

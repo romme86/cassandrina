@@ -28,6 +28,7 @@ var cassandrinaChannels = []string{
 	"cassandrina:trade:liquidated",
 	"cassandrina:stats:8h",
 	"cassandrina:weekly:vote",
+	"cassandrina:polymarket:bitcoin:recap",
 }
 
 func NewRedisSubscriber(redisURL string, handler EventHandler) (*RedisSubscriber, error) {

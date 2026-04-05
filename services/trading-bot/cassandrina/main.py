@@ -66,8 +66,8 @@ def main() -> None:
     config = SchedulerConfig(
         scheduler_timezone=os.environ.get("SCHEDULER_TIMEZONE", "Europe/Zurich"),
         prediction_open_hour=int(os.environ.get("PREDICTION_OPEN_HOUR", 8)),
-        prediction_target_hour=int(os.environ.get("PREDICTION_TARGET_HOUR", 19)),
-        prediction_window_hours=int(os.environ.get("PREDICTION_WINDOW_HOURS", 11)),
+        prediction_target_hour=int(os.environ.get("PREDICTION_TARGET_HOUR", 20)),
+        prediction_window_hours=int(os.environ.get("PREDICTION_WINDOW_HOURS", 12)),
         weekly_vote_day=int(os.environ.get("WEEKLY_VOTE_DAY", 6)),
         weekly_vote_hour=int(os.environ.get("WEEKLY_VOTE_HOUR", 20)),
         report_hours_before_target=int(os.environ.get("REPORT_HOURS_BEFORE_TARGET", 11)),

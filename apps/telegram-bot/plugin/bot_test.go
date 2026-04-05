@@ -85,6 +85,50 @@ func TestHandleRedisEventPredictionClose(t *testing.T) {
 	}
 }
 
+func TestHandleRedisEventPredictionCloseShowsSimulatedModeAndPolymarketDetails(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{MinSats: 1000, MaxSats: 10000, GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleRedisEvent("cassandrina:prediction:close", map[string]interface{}{
+		"close_reason": "paid_threshold",
+		"participants": []map[string]interface{}{
+			{
+				"display_name":         "@seacode",
+				"predicted_low_price":  66450.0,
+				"predicted_high_price": 67360.0,
+				"sats_amount":          3450.0,
+			},
+		},
+		"trade_summary": map[string]interface{}{
+			"direction":                "long",
+			"target_low_price":         66450.0,
+			"target_high_price":        67360.0,
+			"target_price":             66905.0,
+			"entry_price":              66837.87,
+			"confidence_score":         0.381,
+			"strategy":                 "D",
+			"dry_run":                  true,
+			"polymarket_probability":   0.5,
+			"polymarket_source":        "probability",
+			"polymarket_influence_pct": 23.1,
+		},
+	})
+
+	if len(gateway.messages) != 1 {
+		t.Fatalf("expected 1 group message, got %d", len(gateway.messages))
+	}
+	if want := "opened a LONG position (simulated)"; !contains(gateway.messages[0].text, want) {
+		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+	if want := "Polymarket: 50.0% (probability) | Influence: 23.1%"; !contains(gateway.messages[0].text, want) {
+		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+}
+
 func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) {
 	gateway := &fakeTelegramGateway{}
 	bot := &Bot{
@@ -105,6 +149,75 @@ func TestHandleRedisEventPredictionOpenIncludesConfiguredTimezone(t *testing.T) 
 	}
 	if want := "08:00 Europe/Rome"; !contains(gateway.messages[0].text, want) {
 		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+}
+
+func TestHandleRedisEventPolymarketBitcoinRecap(t *testing.T) {
+	gateway := &fakeTelegramGateway{}
+	bot := &Bot{
+		cfg:             &Config{GroupChatID: -42},
+		telegram:        gateway,
+		pendingInvoices: make(map[int64]string),
+	}
+
+	bot.handleRedisEvent("cassandrina:polymarket:bitcoin:recap", map[string]interface{}{
+		"snapshot_at":              "2026-04-05T16:00:00Z",
+		"market_count":             float64(1),
+		"stored_participant_count": float64(12),
+		"price_predictions": map[string]interface{}{
+			"day": map[string]interface{}{
+				"window_days":            float64(1),
+				"threshold_market_count": float64(2),
+				"estimated_price":        103000.0,
+			},
+			"week": map[string]interface{}{
+				"window_days":            float64(7),
+				"threshold_market_count": float64(3),
+				"estimated_price":        107500.0,
+			},
+			"month": map[string]interface{}{
+				"window_days":            float64(30),
+				"threshold_market_count": float64(4),
+				"estimated_price":        112000.0,
+			},
+		},
+		"markets": []map[string]interface{}{
+			{
+				"question":          "Will Bitcoin be above $105,000 by April 5, 2026?",
+				"end_date":          "2026-04-05T23:59:59Z",
+				"participant_count": float64(12),
+				"volume24hr":        float64(45000),
+				"liquidity":         float64(125000),
+				"volume":            float64(510000),
+				"last_trade_price":  0.61,
+				"best_bid":          0.60,
+				"best_ask":          0.62,
+				"outcomes": []map[string]interface{}{
+					{"label": "Yes", "price": 0.61},
+					{"label": "No", "price": 0.39},
+				},
+			},
+		},
+	})
+
+	if len(gateway.messages) == 0 {
+		t.Fatalf("expected recap messages to be sent")
+	}
+	if want := "Polymarket BTC recap"; !contains(gateway.messages[0].text, want) {
+		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+	if want := "Day: $103,000"; !contains(gateway.messages[0].text, want) {
+		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
+	}
+	foundMarket := false
+	for _, message := range gateway.messages {
+		if contains(message.text, "Will Bitcoin be above $105,000 by April 5, 2026?") {
+			foundMarket = true
+			break
+		}
+	}
+	if !foundMarket {
+		t.Fatalf("expected a market entry in the recap messages")
 	}
 }
 
@@ -486,7 +599,7 @@ func TestPredictionStatusCommandShowsParticipantsWithoutAmounts(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(
-				`{"has_round":true,"round_id":12,"question_date":"2026-03-27","target_hour":19,"target_timezone":"Europe/Zurich","open_at":"2026-03-27T07:00:00Z","close_at":"2026-03-27T08:30:00Z","status":"open","participant_count":2,"confirmed_count":1,"participants":[{"display_name":"Alice","paid":true,"created_at":"2026-03-27T07:05:00Z","paid_at":"2026-03-27T07:06:00Z"},{"display_name":"Bob","paid":false,"created_at":"2026-03-27T07:10:00Z","paid_at":""}]}`,
+				`{"has_round":true,"round_id":12,"question_date":"2026-03-27","target_hour":20,"target_timezone":"Europe/Zurich","open_at":"2026-03-27T07:00:00Z","close_at":"2026-03-27T08:30:00Z","status":"open","participant_count":2,"confirmed_count":1,"participants":[{"display_name":"Alice","paid":true,"created_at":"2026-03-27T07:05:00Z","paid_at":"2026-03-27T07:06:00Z"},{"display_name":"Bob","paid":false,"created_at":"2026-03-27T07:10:00Z","paid_at":""}]}`,
 			)),
 		}, nil
 	})}
@@ -535,7 +648,7 @@ func TestPositionStatusCommandShowsOpenPosition(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(
-				`{"phase":"open_position","has_position":true,"trade_id":44,"round_id":12,"question_date":"2026-03-27","target_hour":19,"target_timezone":"Europe/Zurich","open_at":"","close_at":"","status":"open","strategy":"C","direction":"long","entry_price":87123.45,"target_price":87000,"leverage":3,"opened_at":"2026-03-27T08:35:00Z","closed_at":"","pnl_sats":null}`,
+				`{"phase":"open_position","has_position":true,"trade_id":44,"round_id":12,"question_date":"2026-03-27","target_hour":20,"target_timezone":"Europe/Zurich","open_at":"","close_at":"","status":"open","strategy":"C","direction":"long","entry_price":87123.45,"target_price":87000,"leverage":3,"opened_at":"2026-03-27T08:35:00Z","closed_at":"","pnl_sats":null}`,
 			)),
 		}, nil
 	})}
@@ -582,7 +695,7 @@ func TestAdminStartPredictionCommandUsesInternalSecret(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(
-				`{"round_id":12,"question_date":"2026-03-25","target_hour":16,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:30:00Z","minutes":30}`,
+				`{"round_id":12,"question_date":"2026-03-25","target_hour":20,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:30:00Z","minutes":30}`,
 			)),
 		}, nil
 	})}
@@ -620,7 +733,7 @@ func TestAdminStartPredictionCommandMentionsReplacedRound(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body: io.NopCloser(strings.NewReader(
-				`{"round_id":12,"replaced_round_id":7,"question_date":"2026-03-25","target_hour":16,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:05:00Z","minutes":5}`,
+				`{"round_id":12,"replaced_round_id":7,"question_date":"2026-03-25","target_hour":20,"target_timezone":"Europe/Zurich","close_at":"2026-03-25T12:05:00Z","minutes":5}`,
 			)),
 		}, nil
 	})}

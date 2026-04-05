@@ -29,9 +29,9 @@ interface BotConfig {
 }
 
 const DEFAULTS: BotConfig = {
-  prediction_target_hour: "19",
+  prediction_target_hour: "20",
   prediction_open_hour: "8",
-  prediction_window_hours: "11",
+  prediction_window_hours: "12",
   min_sats: "1000",
   max_sats: "10000",
   weekly_vote_day: "6",

@@ -243,6 +243,59 @@ class PostgresRepository:
             )
             return int(cur.fetchone()["count"])
 
+    def all_current_round_group_members_paid(self, round_id: int) -> bool:
+        """Return True when every known member of each active round group has paid."""
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                WITH round_predictions AS (
+                    SELECT
+                        user_id,
+                        paid,
+                        COALESCE(
+                            NULLIF(TRIM(telegram_group_chat_id), ''),
+                            NULLIF(TRIM(telegram_group_name), '')
+                        ) AS group_key
+                    FROM predictions
+                    WHERE round_id = %s
+                ),
+                current_groups AS (
+                    SELECT DISTINCT group_key
+                    FROM round_predictions
+                    WHERE group_key IS NOT NULL
+                ),
+                known_group_members AS (
+                    SELECT
+                        COALESCE(
+                            NULLIF(TRIM(telegram_group_chat_id), ''),
+                            NULLIF(TRIM(telegram_group_name), '')
+                        ) AS group_key,
+                        COUNT(DISTINCT user_id)::int AS member_count
+                    FROM predictions
+                    WHERE COALESCE(
+                        NULLIF(TRIM(telegram_group_chat_id), ''),
+                        NULLIF(TRIM(telegram_group_name), '')
+                    ) IN (SELECT group_key FROM current_groups)
+                    GROUP BY 1
+                ),
+                current_paid_members AS (
+                    SELECT group_key, COUNT(DISTINCT user_id)::int AS paid_count
+                    FROM round_predictions
+                    WHERE group_key IS NOT NULL AND paid = TRUE
+                    GROUP BY 1
+                )
+                SELECT
+                    COUNT(*) > 0
+                    AND BOOL_AND(COALESCE(current_paid_members.paid_count, 0) >= known_group_members.member_count)
+                        AS all_groups_complete
+                FROM known_group_members
+                LEFT JOIN current_paid_members ON current_paid_members.group_key = known_group_members.group_key
+                """,
+                (round_id,),
+            )
+            row = cur.fetchone()
+            return bool(row["all_groups_complete"]) if row else False
+
     def get_unpaid_invoices(self, round_id: int) -> list[dict]:
         with self._cursor() as cur:
             cur.execute(
@@ -389,6 +442,90 @@ class PostgresRepository:
                 WHERE id = %s
                 """,
                 (accuracy, congruency, user_id),
+            )
+
+    def replace_polymarket_bitcoiners(
+        self,
+        *,
+        snapshot_date: date,
+        captured_at: datetime,
+        market: dict,
+        participants: list[dict],
+    ) -> None:
+        condition_id = str(market.get("condition_id") or "").strip()
+        if not condition_id:
+            return
+
+        with self._cursor(commit=True) as cur:
+            cur.execute(
+                """
+                DELETE FROM polymarket_bitcoiners
+                WHERE snapshot_date = %s
+                  AND market_condition_id = %s
+                """,
+                (snapshot_date, condition_id),
+            )
+
+            if not participants:
+                return
+
+            values = []
+            params: list = []
+            for participant in participants:
+                values.append(
+                    """
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                )
+                params.extend(
+                    [
+                        snapshot_date,
+                        captured_at,
+                        condition_id,
+                        market.get("slug"),
+                        market.get("question") or "",
+                        market.get("end_date"),
+                        participant.get("proxy_wallet") or "",
+                        participant.get("display_name"),
+                        participant.get("profile_image"),
+                        bool(participant.get("verified")),
+                        participant.get("outcomes") or [],
+                        float(participant.get("total_bought") or 0.0),
+                        participant.get("avg_price"),
+                        float(participant.get("size") or 0.0),
+                        participant.get("current_price"),
+                        float(participant.get("current_value") or 0.0),
+                        float(participant.get("cash_pnl") or 0.0),
+                        float(participant.get("realized_pnl") or 0.0),
+                        float(participant.get("total_pnl") or 0.0),
+                    ]
+                )
+            cur.execute(
+                f"""
+                INSERT INTO polymarket_bitcoiners (
+                    snapshot_date,
+                    captured_at,
+                    market_condition_id,
+                    market_slug,
+                    market_question,
+                    market_end_date,
+                    proxy_wallet,
+                    display_name,
+                    profile_image,
+                    verified,
+                    outcomes,
+                    total_bought,
+                    avg_price,
+                    size,
+                    current_price,
+                    current_value,
+                    cash_pnl,
+                    realized_pnl,
+                    total_pnl
+                )
+                VALUES {', '.join(values)}
+                """,
+                params,
             )
 
     def create_trade(

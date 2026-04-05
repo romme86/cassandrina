@@ -3,10 +3,11 @@ Prediction Scheduler for Cassandrina.
 
 Manages the daily prediction cycle in a configurable local timezone:
   08:00 — open prediction window (configurable)
-  08:00–14:00 — collect predictions (6h window, configurable)
-  14:00 — close window (early if all users paid)
-  08:00 — 8h report (8h before 16:00 target)
-  16:00 — evaluate predictions, update scores, trigger trade
+  08:00–20:00 — collect predictions (12h window by default, configurable)
+  14:00 — earliest automatic close unless all known group members already paid
+  09:00 — report before target time (11h before 20:00 by default)
+  16:00 — Polymarket BTC recap to Telegram
+  20:00 — evaluate predictions, update scores, trigger trade
   Sunday 20:00 — weekly vote
 
 Uses APScheduler for job scheduling and Redis pub/sub for outbound events.
@@ -64,8 +65,9 @@ class RoundStatus(str, Enum):
 class SchedulerConfig:
     scheduler_timezone: str = "UTC"
     prediction_open_hour: int = 8
-    prediction_target_hour: int = 16
-    prediction_window_hours: int = 6
+    prediction_target_hour: int = 20
+    prediction_window_hours: int = 12
+    prediction_early_close_hour: int = 14
     weekly_vote_day: int = 6        # 0=Monday … 6=Sunday
     weekly_vote_hour: int = 20
     report_hours_before_target: int = 8
@@ -79,6 +81,7 @@ class PredictionScheduler:
     *db* must expose:
         create_round(date, target_hour) → dict with 'id'
         close_round(round_id)
+        all_current_round_group_members_paid(round_id) → bool
         get_paid_predictions_count(round_id) → int
         get_round_status(round_id) → RoundStatus
 
@@ -215,6 +218,44 @@ class PredictionScheduler:
             },
         )
 
+    def send_polymarket_bitcoin_recap(self) -> None:
+        """Fetch BTC-related Polymarket markets, persist participants, and publish a recap."""
+        if not self._polymarket:
+            return
+
+        snapshot_at = datetime.now(timezone.utc)
+        recap = self._polymarket.build_bitcoin_market_recap(as_of=snapshot_at)
+        snapshot_date = snapshot_at.date()
+        stored_participant_count = 0
+
+        for market in recap.get("markets", []):
+            condition_id = market.get("condition_id")
+            if not condition_id:
+                market["participant_count"] = 0
+                continue
+            try:
+                participants = self._polymarket.fetch_market_participants(str(condition_id))
+            except Exception:
+                logger.exception("Failed to fetch Polymarket participants for %s", condition_id)
+                market["participant_count"] = 0
+                continue
+
+            market["participant_count"] = len(participants)
+            if hasattr(self._db, "replace_polymarket_bitcoiners"):
+                try:
+                    self._db.replace_polymarket_bitcoiners(
+                        snapshot_date=snapshot_date,
+                        captured_at=snapshot_at,
+                        market=market,
+                        participants=participants,
+                    )
+                    stored_participant_count += len(participants)
+                except Exception:
+                    logger.exception("Failed to store Polymarket bitcoiners for %s", condition_id)
+
+        recap["stored_participant_count"] = stored_participant_count
+        self._publish("polymarket:bitcoin:recap", recap)
+
     # ── APScheduler setup ─────────────────────────────────────
 
     def start(self) -> None:
@@ -279,6 +320,14 @@ class PredictionScheduler:
             self._job_reconcile_positions,
             "cron",
             hour=reconcile_hour,
+            minute=0,
+        )
+
+        # Daily Polymarket BTC recap
+        self._scheduler.add_job(
+            self._job_polymarket_bitcoin_recap,
+            "cron",
+            hour=16,
             minute=0,
         )
 
@@ -384,6 +433,9 @@ class PredictionScheduler:
         close_at = round_data.get("close_at")
 
         if paid_count >= self.config.min_paid_predictions:
+            early_close_cutoff = self._get_prediction_early_close_cutoff(round_data)
+            if now < early_close_cutoff and not self._all_current_round_group_members_paid(round_data["id"]):
+                return
             self.try_close_window(round_data["id"], close_reason="paid_threshold")
             return
 
@@ -406,6 +458,12 @@ class PredictionScheduler:
         round_data = self._db.get_open_round()
         if round_data:
             self.send_8h_report(round_data["id"])
+
+    def _job_polymarket_bitcoin_recap(self) -> None:
+        try:
+            self.send_polymarket_bitcoin_recap()
+        except Exception:
+            logger.exception("Failed to send Polymarket BTC recap")
 
     def _job_fund_reconciliation(self) -> None:
         """Compare ledger totals against LND and Binance balances."""
@@ -584,6 +642,29 @@ class PredictionScheduler:
         except Exception:
             logger.exception("Failed to load bot config")
             return {}
+
+    def _get_prediction_early_close_cutoff(self, round_data: dict) -> datetime:
+        round_date = round_data.get("question_date")
+        if isinstance(round_date, str):
+            try:
+                round_date = date.fromisoformat(round_date)
+            except ValueError:
+                round_date = None
+        if not isinstance(round_date, date):
+            round_date = datetime.now(self._scheduler_tz).date()
+        cutoff_local = datetime.combine(
+            round_date,
+            dt_time(hour=self.config.prediction_early_close_hour),
+            tzinfo=self._scheduler_tz,
+        )
+        return cutoff_local.astimezone(timezone.utc)
+
+    def _all_current_round_group_members_paid(self, round_id: int) -> bool:
+        try:
+            return bool(self._db.all_current_round_group_members_paid(round_id))
+        except Exception:
+            logger.exception("Failed to determine whether all current round group members have paid")
+            return False
 
     @staticmethod
     def _get_runtime_config_int(bot_config: dict[str, str], key: str, fallback: int) -> int:
@@ -828,11 +909,14 @@ class PredictionScheduler:
             _DEFAULT_PM_MARKET_MAX_DISTANCE_PCT,
         )
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
+        trade_live = trading_enabled and self._trade_executor is not None
         target_low_price, target_high_price, target_price = self._compute_target_range(participants)
         current_price = self._market_data.get_btc_price()
         direction = get_direction(current_price, target_price)
         polymarket_probability = 0.5
         polymarket_influence_pct = 0.0
+        polymarket_source = "unavailable"
+        polymarket_confidence_input = 0.5
         if self._polymarket:
             try:
                 target_date = datetime.now(timezone.utc).date()
@@ -845,8 +929,15 @@ class PredictionScheduler:
                 )
                 if polymarket_signal.available:
                     polymarket_probability = polymarket_signal.aligned_probability
+                    polymarket_confidence_input = min(
+                        max(polymarket_signal.alignment_score / 100.0, _MIN_CONFIDENCE_SCORE),
+                        _MAX_CONFIDENCE_SCORE,
+                    )
+                    polymarket_source = "signal"
                 else:
                     polymarket_probability = self._polymarket.fetch_btc_probability(target_date)
+                    polymarket_confidence_input = min(max(polymarket_probability, _MIN_CONFIDENCE_SCORE), _MAX_CONFIDENCE_SCORE)
+                    polymarket_source = "probability"
             except Exception:
                 logger.exception("Failed to fetch Polymarket probability")
                 polymarket_signal = None
@@ -874,10 +965,10 @@ class PredictionScheduler:
             for confidence in real_user_confidences
         ]
         confidence_score = compute_round_confidence(adjusted_confidences)
-        if polymarket_signal and polymarket_signal.available:
+        if self._polymarket and polymarket_source != "unavailable":
             confidence_score, polymarket_influence_pct = self._apply_polymarket_confidence_modifier(
                 confidence_score,
-                alignment_score=polymarket_signal.alignment_score,
+                alignment_score=polymarket_confidence_input * 100.0,
                 min_weight_pct=pm_conf_weight_min_pct,
                 max_weight_pct=pm_conf_weight_max_pct,
             )
@@ -894,7 +985,7 @@ class PredictionScheduler:
         )
 
         result = {"type": "dry_run", "order": {"orderId": f"dry-run-{round_id}"}}
-        if trading_enabled and self._trade_executor:
+        if trade_live:
             result = self._trade_executor.execute(
                 strategy=strategy,
                 direction=direction,
@@ -929,9 +1020,11 @@ class PredictionScheduler:
                 "target_high_price": target_high_price,
                 "target_price": target_price,
                 "confidence_score": confidence_score,
+                "polymarket_probability": polymarket_probability,
+                "polymarket_source": polymarket_source,
                 "polymarket_influence_pct": polymarket_influence_pct,
                 "sats_deployed": sats_deployed,
-                "dry_run": not trading_enabled,
+                "dry_run": not trade_live,
             },
         )
         return {
@@ -943,9 +1036,11 @@ class PredictionScheduler:
             "target_high_price": target_high_price,
             "target_price": target_price,
             "confidence_score": confidence_score,
+            "polymarket_probability": polymarket_probability,
+            "polymarket_source": polymarket_source,
             "polymarket_influence_pct": polymarket_influence_pct,
             "sats_deployed": sats_deployed,
-            "dry_run": not trading_enabled,
+            "dry_run": not trade_live,
         }
 
     def _recompute_user_scores(self, user_id: int, *, min_sats: int, max_sats: int) -> tuple[float, float]:

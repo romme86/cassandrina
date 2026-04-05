@@ -93,8 +93,8 @@ async function getStrategyData() {
     }>(
       `SELECT strategy, COUNT(*)::int AS total_trades,
               SUM(CASE WHEN pnl_sats > 0 THEN 1 ELSE 0 END)::int AS wins,
-              ROUND(AVG(pnl_sats))::int AS avg_pnl_sats,
-              SUM(pnl_sats)::int AS total_pnl_sats
+              COALESCE(ROUND(AVG(pnl_sats)), 0)::int AS avg_pnl_sats,
+              COALESCE(SUM(pnl_sats), 0)::int AS total_pnl_sats
        FROM trades WHERE status IN ('closed','liquidated')
        GROUP BY strategy ORDER BY strategy`
     );

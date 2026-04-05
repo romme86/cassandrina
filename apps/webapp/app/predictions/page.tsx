@@ -71,8 +71,8 @@ async function getStrategyStats(): Promise<StrategyRow[]> {
       `SELECT strategy,
               COUNT(*)::int AS total_trades,
               SUM(CASE WHEN pnl_sats > 0 THEN 1 ELSE 0 END)::int AS wins,
-              ROUND(AVG(pnl_sats))::int AS avg_pnl_sats,
-              SUM(pnl_sats)::int AS total_pnl_sats
+              COALESCE(ROUND(AVG(pnl_sats)), 0)::int AS avg_pnl_sats,
+              COALESCE(SUM(pnl_sats), 0)::int AS total_pnl_sats
        FROM trades WHERE status IN ('closed','liquidated')
        GROUP BY strategy ORDER BY strategy`
     );
@@ -220,6 +220,7 @@ export default async function PredictionsPage() {
           {strategies.map((s) => {
             const winRate =
               s.total_trades > 0 ? Math.round((s.wins / s.total_trades) * 100) : 0;
+            const avgPnlSats = s.avg_pnl_sats ?? 0;
             return (
               <Card key={s.strategy} className="border-white/5 bg-card/95">
                 <CardContent className="pt-4 pb-4">
@@ -227,9 +228,9 @@ export default async function PredictionsPage() {
                   <p className="text-xs text-muted-foreground">{s.total_trades} trades</p>
                   <p className="text-xs text-muted-foreground">{winRate}% win rate</p>
                   <p className="text-xs font-mono mt-1">
-                    <span className={s.avg_pnl_sats >= 0 ? "text-primary" : "text-red-400"}>
-                      {s.avg_pnl_sats >= 0 ? "+" : ""}
-                      {s.avg_pnl_sats.toLocaleString()} avg
+                    <span className={avgPnlSats >= 0 ? "text-primary" : "text-red-400"}>
+                      {avgPnlSats >= 0 ? "+" : ""}
+                      {avgPnlSats.toLocaleString()} avg
                     </span>
                   </p>
                 </CardContent>

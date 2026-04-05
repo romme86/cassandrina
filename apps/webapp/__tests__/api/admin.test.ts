@@ -54,7 +54,7 @@ describe("admin API routes", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { key: "prediction_target_hour", value: "16" },
+        { key: "prediction_target_hour", value: "20" },
         { key: "min_sats", value: "100" },
         { key: "max_sats", value: "5000" },
       ])
@@ -62,7 +62,7 @@ describe("admin API routes", () => {
         {
           id: 42,
           question_date: "2026-03-25",
-          target_hour: 16,
+          target_hour: 20,
           open_at: "2026-03-25T12:00:00.000Z",
           close_at: "2026-03-25T12:30:00.000Z",
           status: "open",
@@ -94,14 +94,14 @@ describe("admin API routes", () => {
         {
           id: 7,
           question_date: "2026-03-25",
-          target_hour: 16,
+          target_hour: 20,
           open_at: "2026-03-25T08:00:00.000Z",
           close_at: "2026-03-25T14:00:00.000Z",
           status: "open",
         },
       ])
       .mockResolvedValueOnce([
-        { key: "prediction_target_hour", value: "16" },
+        { key: "prediction_target_hour", value: "20" },
         { key: "min_sats", value: "100" },
         { key: "max_sats", value: "5000" },
       ])
@@ -113,7 +113,7 @@ describe("admin API routes", () => {
         {
           id: 42,
           question_date: "2026-03-25",
-          target_hour: 16,
+          target_hour: 20,
           open_at: "2026-03-25T12:00:00.000Z",
           close_at: "2026-03-25T12:05:00.000Z",
           status: "open",
@@ -165,7 +165,7 @@ describe("admin API routes", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { key: "prediction_target_hour", value: "16" },
+        { key: "prediction_target_hour", value: "20" },
         { key: "min_sats", value: "100" },
         { key: "max_sats", value: "5000" },
       ])
@@ -173,7 +173,7 @@ describe("admin API routes", () => {
         {
           id: 42,
           question_date: "2026-03-25",
-          target_hour: 16,
+          target_hour: 20,
           open_at: "2026-03-25T12:00:00.000Z",
           close_at: "2026-03-25T12:05:00.000Z",
           status: "open",
@@ -199,7 +199,7 @@ describe("admin API routes", () => {
 
   test("GET /api/admin/stats/balance returns open-round stats", async () => {
     mockQuery
-      .mockResolvedValueOnce([{ id: 42, question_date: "2026-03-25", target_hour: 16 }])
+      .mockResolvedValueOnce([{ id: 42, question_date: "2026-03-25", target_hour: 20 }])
       .mockResolvedValueOnce([{ participant_count: 3, paid_count: 2, total_sats: 1500 }]);
 
     const req = new NextRequest("http://localhost/api/admin/stats/balance", {
