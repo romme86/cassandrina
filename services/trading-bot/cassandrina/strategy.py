@@ -7,6 +7,8 @@ provides direction (long/short), leverage, and grid parameters.
 
 from enum import Enum
 
+from cassandrina.exchange import ExchangePlatform
+
 
 class Strategy(str, Enum):
     A = "A"   # confidence ≥ 0.65 — Futures, 20x–40x leverage
@@ -28,6 +30,14 @@ _STRATEGY_THRESHOLDS: list[tuple[float, Strategy]] = [
 _DEFAULT_LEVERAGE: dict[Strategy, int] = {
     Strategy.A: 30,   # midpoint of 20–40
     Strategy.B: 20,
+    Strategy.C: 1,
+    Strategy.D: 1,
+    Strategy.E: 1,
+}
+
+_HYPERLIQUID_LEVERAGE: dict[Strategy, int] = {
+    Strategy.A: 5,
+    Strategy.B: 3,
     Strategy.C: 1,
     Strategy.D: 1,
     Strategy.E: 1,
@@ -71,6 +81,14 @@ def get_direction(current_price: float, target_price: float) -> str:
 def get_leverage(strategy: Strategy) -> int:
     """Return the default leverage for the given strategy."""
     return _DEFAULT_LEVERAGE[strategy]
+
+
+def get_exchange_leverage(strategy: Strategy, platform: ExchangePlatform | str) -> int:
+    """Return the venue-specific leverage for the given strategy."""
+    venue = ExchangePlatform(platform)
+    if venue == ExchangePlatform.HYPERLIQUID:
+        return _HYPERLIQUID_LEVERAGE[strategy]
+    return get_leverage(strategy)
 
 
 def get_grid_midpoint(current_price: float, target_price: float) -> float:

@@ -37,6 +37,11 @@ export const BotConfigSchema = z.object({
   pm_market_max_distance_pct: z.number().min(0).max(100).optional(),
   weekly_vote_day: z.number().int().min(0).max(6).optional(),
   weekly_vote_hour: z.number().int().min(0).max(23).optional(),
+  exchange_platform: z.enum(["binance", "hyperliquid"]).optional(),
+  hyperliquid_enabled: z.boolean().optional(),
+  hyperliquid_max_slippage_bps: z.number().int().min(1).max(5000).optional(),
+  hyperliquid_perp_leverage_cap: z.number().int().min(1).max(20).optional(),
+  hyperliquid_bootstrap_ready: z.boolean().optional(),
   trading_enabled: z.boolean().optional(),
 });
 

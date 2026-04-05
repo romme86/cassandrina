@@ -1,24 +1,24 @@
 """
-Trade Executor for Cassandrina.
+Trade executor for Cassandrina.
 
-Bridges the strategy selector and Binance client: given a Strategy,
-direction, prices and sats_deployed, dispatches the correct orders.
+Bridges strategy selection and venue-specific exchange clients.
 """
 
 from __future__ import annotations
 
 import logging
 
-from cassandrina.binance_client import BinanceClientWrapper, BinanceError
-from cassandrina.strategy import Strategy, get_leverage, get_grid_midpoint, TAKE_PROFIT_PCT, STOP_LOSS_PCT
+from cassandrina.exchange import ExchangeClient, ExchangeError, ExchangePlatform, ExecutionOrder, ExecutionResult
+from cassandrina.strategy import (
+    STOP_LOSS_PCT,
+    TAKE_PROFIT_PCT,
+    Strategy,
+    get_exchange_leverage,
+    get_grid_midpoint,
+)
 
 logger = logging.getLogger(__name__)
 
-# BTC quantity precision on Binance (0.001 minimum lot size)
-_BTC_LOT_SIZE = 0.001
-
-# Approximate BTC/USDT conversion factor (updated at runtime via market price)
-# For sizing, we use sats_deployed as a fraction of sats per BTC
 _SATS_PER_BTC = 100_000_000
 
 
@@ -30,23 +30,31 @@ def _usdt_to_sats(usdt_amount: float, btc_price: float) -> int:
     return int(round(btc_amount * _SATS_PER_BTC))
 
 
-def _sats_to_btc(sats: int) -> float:
-    """Convert sats to BTC, rounded to lot size.
-
-    Returns 0.0 if the pool is too small for the minimum Binance lot size,
-    so callers can decide whether to skip the trade.
-    """
+def _sats_to_btc(sats: int, decimals: int = 3, min_size_btc: float = 0.001) -> float:
     btc = sats / _SATS_PER_BTC
-    rounded = round(btc, 3)
-    if rounded < _BTC_LOT_SIZE:
+    rounded = round(btc, decimals)
+    if rounded < min_size_btc:
         return 0.0
     return rounded
 
 
 class TradeExecutor:
-    def __init__(self, binance_client: BinanceClientWrapper, symbol: str = "BTCUSDT"):
-        self._client = binance_client
+    def __init__(self, client: ExchangeClient, symbol: str = "BTCUSDT"):
+        self._client = client
         self.symbol = symbol
+
+    @property
+    def platform(self) -> ExchangePlatform:
+        return self._client.platform
+
+    def quantize_trade_size(self, sats_deployed: int, *, leverage: int = 1, price_hint: float | None = None):
+        return self._client.quantize_btc_amount(
+            sats_deployed,
+            symbol=self.symbol,
+            leverage=leverage,
+            use_quote_minimum=self.platform == ExchangePlatform.HYPERLIQUID,
+            price_hint=price_hint,
+        )
 
     def execute(
         self,
@@ -56,28 +64,36 @@ class TradeExecutor:
         target_price: float,
         sats_deployed: int,
     ) -> dict:
-        """
-        Execute the appropriate Binance operation for *strategy*.
+        leverage = get_exchange_leverage(strategy, self.platform)
+        quantity_spec = self.quantize_trade_size(
+            sats_deployed,
+            leverage=leverage,
+            price_hint=current_price,
+        )
+        if quantity_spec.skipped or quantity_spec.quantity_btc <= 0:
+            result = ExecutionResult(
+                platform=self.platform,
+                strategy=strategy.value,
+                execution_type="skipped",
+                live=True,
+                reason=quantity_spec.reason or "pool too small for venue minimum size",
+                quantity_btc=quantity_spec.quantity_btc,
+                leverage=leverage,
+                metadata={"min_size_btc": quantity_spec.min_size_btc},
+            )
+            return self._result_to_dict(result)
 
-        Returns a dict with the opened order info and metadata.
-        """
-        quantity = _sats_to_btc(sats_deployed)
+        if strategy in (Strategy.A, Strategy.B, Strategy.D, Strategy.E):
+            result = self._execute_directional(
+                strategy=strategy,
+                direction=direction,
+                current_price=current_price,
+                quantity=quantity_spec.quantity_btc,
+            )
+            return self._result_to_dict(result)
 
-        if quantity <= 0:
-            return {
-                "type": "skipped",
-                "reason": "pool too small for minimum lot size",
-                "strategy": strategy.value,
-            }
-
-        if strategy in (Strategy.A, Strategy.B):
-            return self._execute_futures(strategy, direction, quantity, current_price)
-
-        if strategy == Strategy.C:
-            return self._execute_grid(current_price, target_price, quantity)
-
-        # Strategy D or E — spot with TP
-        return self._execute_spot(strategy, direction, current_price, quantity)
+        result = self._execute_grid(current_price, target_price, quantity_spec.quantity_btc)
+        return self._result_to_dict(result)
 
     def close_position(
         self,
@@ -85,161 +101,209 @@ class TradeExecutor:
         direction: str,
         quantity_btc: float,
     ) -> dict:
-        """Close an open position at settlement time."""
-        if strategy in (Strategy.A, Strategy.B):
+        orders: list[ExecutionOrder] = []
+        if strategy in (Strategy.A, Strategy.B, Strategy.C, Strategy.D, Strategy.E):
             self._client.cancel_all_futures_orders(symbol=self.symbol)
+            if strategy == Strategy.C:
+                result = ExecutionResult(
+                    platform=self.platform,
+                    strategy=strategy.value,
+                    execution_type="grid_cancelled",
+                    live=True,
+                    quantity_btc=quantity_btc,
+                )
+                return self._result_to_dict(result)
             order = self._client.close_futures_position(
                 symbol=self.symbol,
                 side=direction,
                 quantity=quantity_btc,
             )
-            return {"type": "futures_close", "order": order}
+            orders.append(
+                ExecutionOrder(
+                    order_id=self._extract_order_id(order),
+                    kind="close",
+                    side="sell" if direction == "long" else "buy",
+                    quantity_btc=quantity_btc,
+                    reduce_only=True,
+                    raw=order,
+                )
+            )
+            result = ExecutionResult(
+                platform=self.platform,
+                strategy=strategy.value,
+                execution_type="perp_close",
+                live=True,
+                quantity_btc=quantity_btc,
+                orders=orders,
+            )
+            return self._result_to_dict(result)
+        return self._result_to_dict(
+            ExecutionResult(
+                platform=self.platform,
+                strategy=strategy.value,
+                execution_type="skipped",
+                live=True,
+                reason="unsupported strategy close",
+            )
+        )
 
-        if strategy == Strategy.C:
-            self._client.cancel_all_orders(symbol=self.symbol)
-            return {"type": "grid_cancelled"}
-
-        # Spot D/E — sell remaining position
-        self._client.cancel_all_orders(symbol=self.symbol)
-        if direction == "long":
-            order = self._client.spot_sell(symbol=self.symbol, quantity=quantity_btc)
-        else:
-            order = self._client.spot_buy(symbol=self.symbol, quantity=quantity_btc)
-        return {"type": "spot_close", "order": order}
-
-    def _execute_futures(
+    def _execute_directional(
         self,
+        *,
         strategy: Strategy,
         direction: str,
-        quantity: float,
         current_price: float,
-    ) -> dict:
-        leverage = get_leverage(strategy)
+        quantity: float,
+    ) -> ExecutionResult:
+        leverage = get_exchange_leverage(strategy, self.platform)
+        orders: list[ExecutionOrder] = []
         order = self._client.futures_order(
             symbol=self.symbol,
             side=direction,
             quantity=quantity,
             leverage=leverage,
         )
+        orders.append(
+            ExecutionOrder(
+                order_id=self._extract_order_id(order),
+                kind="entry",
+                side=direction,
+                quantity_btc=quantity,
+                raw=order,
+            )
+        )
 
-        sl_order = None
         sl_pct = STOP_LOSS_PCT[strategy]
         if sl_pct > 0:
-            if direction == "long":
-                sl_price = current_price * (1 - sl_pct / 100)
-            else:
-                sl_price = current_price * (1 + sl_pct / 100)
+            sl_price = current_price * (1 - sl_pct / 100) if direction == "long" else current_price * (1 + sl_pct / 100)
             sl_order = self._client.set_stop_loss(
                 symbol=self.symbol,
                 side=direction,
                 quantity=quantity,
                 sl_price=sl_price,
             )
-
-        return {
-            "type": "futures",
-            "order": order,
-            "sl_order": sl_order,
-            "strategy": strategy.value,
-        }
-
-    def _execute_grid(
-        self,
-        current_price: float,
-        target_price: float,
-        quantity: float,
-    ) -> dict:
-        midpoint = get_grid_midpoint(current_price, target_price)
-        lower = min(current_price, midpoint)
-        upper = max(current_price, midpoint)
-        orders = self._client.place_grid_orders(
-            symbol=self.symbol,
-            lower_price=lower,
-            upper_price=upper,
-            num_grids=5,
-            quantity_per_grid=round(quantity / 5, 3),
-        )
-        return {"type": "grid", "orders": orders, "strategy": Strategy.C.value}
-
-    def _execute_spot(
-        self,
-        strategy: Strategy,
-        direction: str,
-        current_price: float,
-        quantity: float,
-    ) -> dict:
-        if direction == "long":
-            order = self._client.spot_buy(symbol=self.symbol, quantity=quantity)
-        else:
-            order = self._client.spot_sell(symbol=self.symbol, quantity=quantity)
+            orders.append(
+                ExecutionOrder(
+                    order_id=self._extract_order_id(sl_order),
+                    kind="stop_loss",
+                    side="sell" if direction == "long" else "buy",
+                    quantity_btc=quantity,
+                    price=sl_price,
+                    reduce_only=True,
+                    raw=sl_order,
+                )
+            )
 
         tp_pct = TAKE_PROFIT_PCT[strategy]
-        if tp_pct > 0 and direction == "long":
-            tp_price = current_price * (1 + tp_pct / 100)
-        elif tp_pct > 0 and direction == "short":
-            tp_price = current_price * (1 - tp_pct / 100)
-        else:
-            tp_price = None
-
-        tp_order = None
-        if tp_price is not None:
+        if tp_pct > 0:
+            tp_price = current_price * (1 + tp_pct / 100) if direction == "long" else current_price * (1 - tp_pct / 100)
             tp_order = self._client.set_take_profit(
                 symbol=self.symbol,
                 side=direction,
                 quantity=quantity,
                 tp_price=tp_price,
             )
-
-        sl_order = None
-        sl_pct = STOP_LOSS_PCT[strategy]
-        if sl_pct > 0:
-            if direction == "long":
-                sl_price = current_price * (1 - sl_pct / 100)
-            else:
-                sl_price = current_price * (1 + sl_pct / 100)
-            sl_order = self._client.set_spot_stop_loss(
-                symbol=self.symbol,
-                side=direction,
-                quantity=quantity,
-                sl_price=sl_price,
+            orders.append(
+                ExecutionOrder(
+                    order_id=self._extract_order_id(tp_order),
+                    kind="take_profit",
+                    side="sell" if direction == "long" else "buy",
+                    quantity_btc=quantity,
+                    price=tp_price,
+                    reduce_only=True,
+                    raw=tp_order,
+                )
             )
 
-        return {
-            "type": "spot",
-            "order": order,
-            "tp_order": tp_order,
-            "sl_order": sl_order,
-            "strategy": strategy.value,
-        }
+        return ExecutionResult(
+            platform=self.platform,
+            strategy=strategy.value,
+            execution_type="perp",
+            live=True,
+            quantity_btc=quantity,
+            leverage=leverage,
+            orders=orders,
+        )
+
+    def _execute_grid(
+        self,
+        current_price: float,
+        target_price: float,
+        quantity: float,
+    ) -> ExecutionResult:
+        midpoint = get_grid_midpoint(current_price, target_price)
+        lower = min(current_price, midpoint)
+        upper = max(current_price, midpoint)
+        grid_size = round(quantity / 5, self._client.get_market_meta(self.symbol).size_decimals)
+        orders = self._client.place_grid_orders(
+            symbol=self.symbol,
+            lower_price=lower,
+            upper_price=upper,
+            num_grids=5,
+            quantity_per_grid=grid_size,
+        )
+        execution_orders = [
+            ExecutionOrder(
+                order_id=self._extract_order_id(order),
+                kind="grid_leg",
+                side=order.get("side"),
+                quantity_btc=grid_size,
+                price=self._extract_price(order),
+                raw=order,
+            )
+            for order in orders
+        ]
+        return ExecutionResult(
+            platform=self.platform,
+            strategy=Strategy.C.value,
+            execution_type="grid",
+            live=True,
+            quantity_btc=quantity,
+            leverage=1,
+            orders=execution_orders,
+        )
 
     def reconcile_position(self, trade: dict) -> dict:
-        """Compare local trade record against actual Binance state.
-
-        Returns a dict with reconciliation results including any discrepancies.
-        """
         strategy = Strategy(trade["strategy"])
-        expected_qty = _sats_to_btc(int(trade["sats_deployed"]))
-        result: dict = {"trade_id": trade["id"], "strategy": strategy.value, "discrepancies": []}
+        leverage = get_exchange_leverage(strategy, self.platform)
+        quantity_spec = self.quantize_trade_size(
+            int(trade["sats_deployed"]),
+            leverage=leverage,
+            price_hint=float(trade.get("entry_price", 0.0) or 0.0),
+        )
+        expected_qty = quantity_spec.quantity_btc
+        result: dict = {
+            "trade_id": trade["id"],
+            "strategy": strategy.value,
+            "platform": self.platform.value,
+            "discrepancies": [],
+        }
 
         try:
-            if strategy in (Strategy.A, Strategy.B):
-                pos = self._client.get_futures_position(self.symbol)
-                if pos is None:
-                    if trade["status"] == "open":
-                        result["discrepancies"].append("DB shows open trade but no futures position on Binance")
-                else:
-                    actual_qty = abs(pos["position_amt"])
-                    if abs(actual_qty - expected_qty) > _BTC_LOT_SIZE:
-                        result["discrepancies"].append(
-                            f"Position size mismatch: DB={expected_qty} BTC, Binance={actual_qty} BTC"
-                        )
-                    result["exchange_position"] = pos
+            pos = self._client.get_futures_position(self.symbol)
+            if pos is None:
+                if trade["status"] == "open":
+                    result["discrepancies"].append(
+                        f"DB shows open trade but no {self.platform.value} position exists"
+                    )
             else:
-                balance = self._client.get_spot_balance("BTC")
-                result["spot_balance_btc"] = balance
-        except (BinanceError, Exception):
+                actual_qty = abs(pos.quantity_btc)
+                tolerance = max(quantity_spec.min_size_btc, 10 ** (-self._client.get_market_meta(self.symbol).size_decimals))
+                if abs(actual_qty - expected_qty) > tolerance:
+                    result["discrepancies"].append(
+                        f"Position size mismatch: DB={expected_qty} BTC, {self.platform.value}={actual_qty} BTC"
+                    )
+                result["exchange_position"] = {
+                    "symbol": pos.symbol,
+                    "quantity_btc": pos.quantity_btc,
+                    "entry_price": pos.entry_price,
+                    "unrealized_pnl": pos.unrealized_pnl,
+                    "leverage": pos.leverage,
+                    "raw": pos.raw,
+                }
+        except (ExchangeError, Exception):
             logger.exception("Reconciliation failed for trade %s", trade["id"])
-            result["discrepancies"].append("Failed to query Binance")
+            result["discrepancies"].append(f"Failed to query {self.platform.value}")
 
         return result
 
@@ -251,50 +315,64 @@ class TradeExecutor:
         opened_at_ms: int,
         current_btc_price: float,
     ) -> int | None:
-        """Query Binance for actual realized PnL. Returns sats or None on failure."""
         try:
-            if strategy in (Strategy.A, Strategy.B):
-                return self._futures_realized_pnl(opened_at_ms, current_btc_price)
-            return self._spot_realized_pnl(direction, opened_at_ms, current_btc_price)
-        except (BinanceError, Exception):
-            logger.exception("Failed to query realized PnL from Binance")
+            return self._client.get_realized_pnl(
+                self.symbol,
+                strategy=strategy.value,
+                direction=direction,
+                sats_deployed=sats_deployed,
+                opened_at_ms=opened_at_ms,
+                current_btc_price=current_btc_price,
+            )
+        except (ExchangeError, Exception):
+            logger.exception("Failed to query realized PnL from %s", self.platform.value)
             return None
 
-    def _futures_realized_pnl(self, opened_at_ms: int, btc_price: float) -> int:
-        """Sum REALIZED_PNL and COMMISSION income entries since trade open."""
-        entries = self._client.get_futures_income(
-            symbol=self.symbol,
-            income_type="REALIZED_PNL",
-            start_time=opened_at_ms,
-        )
-        total_usdt = sum(float(e.get("income", 0)) for e in entries)
-        commissions = self._client.get_futures_income(
-            symbol=self.symbol,
-            income_type="COMMISSION",
-            start_time=opened_at_ms,
-        )
-        total_usdt += sum(float(e.get("income", 0)) for e in commissions)
-        return _usdt_to_sats(total_usdt, btc_price)
+    @staticmethod
+    def _extract_order_id(order: dict | None) -> str | None:
+        if not isinstance(order, dict):
+            return None
+        value = order.get("orderId") or order.get("oid")
+        return str(value) if value is not None else None
 
-    def _spot_realized_pnl(self, direction: str, opened_at_ms: int, btc_price: float) -> int:
-        """Compute spot PnL from actual fills."""
-        trades = self._client.get_spot_trades(
-            symbol=self.symbol,
-            start_time=opened_at_ms,
-        )
-        if not trades:
-            return 0
-        total_bought_cost = 0.0
-        total_sold_revenue = 0.0
-        for t in trades:
-            quote_qty = float(t["quoteQty"])
-            commission = float(t.get("commission", 0))
-            if t["isBuyer"]:
-                total_bought_cost += quote_qty + commission
-            else:
-                total_sold_revenue += quote_qty - commission
-        if direction == "long":
-            pnl_usdt = total_sold_revenue - total_bought_cost
-        else:
-            pnl_usdt = total_bought_cost - total_sold_revenue
-        return _usdt_to_sats(pnl_usdt, btc_price)
+    @staticmethod
+    def _extract_price(order: dict | None) -> float | None:
+        if not isinstance(order, dict):
+            return None
+        for key in ("price", "limitPx", "px"):
+            value = order.get(key)
+            if value is not None:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    @staticmethod
+    def _result_to_dict(result: ExecutionResult) -> dict:
+        payload = {
+            "platform": result.platform.value,
+            "type": result.execution_type,
+            "strategy": result.strategy,
+            "live": result.live,
+            "reason": result.reason,
+            "quantity_btc": result.quantity_btc,
+            "leverage": result.leverage,
+            "orders": [
+                {
+                    "orderId": order.order_id,
+                    "kind": order.kind,
+                    "side": order.side,
+                    "quantity_btc": order.quantity_btc,
+                    "price": order.price,
+                    "reduce_only": order.reduce_only,
+                    **order.raw,
+                }
+                for order in result.orders
+            ],
+            **result.metadata,
+        }
+        if result.orders:
+            first = result.orders[0]
+            payload["order"] = {"orderId": first.order_id, **first.raw}
+        return payload

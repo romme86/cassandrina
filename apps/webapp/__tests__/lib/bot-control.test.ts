@@ -14,6 +14,9 @@ describe("deriveBotControlStatus", () => {
       heartbeatAt: null,
       isResponsive: false,
       tradingEnabled: true,
+      exchangePlatform: "hyperliquid",
+      hyperliquidBootstrapReady: false,
+      hyperliquidBootstrapState: "disabled",
     });
   });
 
@@ -26,6 +29,9 @@ describe("deriveBotControlStatus", () => {
         bot_actual_state: "paused",
         bot_heartbeat_at: heartbeatAt,
         trading_enabled: "false",
+        exchange_platform: "binance",
+        hyperliquid_bootstrap_ready: "true",
+        hyperliquid_bootstrap_state: "ready",
       })
     ).toEqual({
       desiredState: "paused",
@@ -33,6 +39,9 @@ describe("deriveBotControlStatus", () => {
       heartbeatAt,
       isResponsive: true,
       tradingEnabled: false,
+      exchangePlatform: "binance",
+      hyperliquidBootstrapReady: true,
+      hyperliquidBootstrapState: "ready",
     });
   });
 });

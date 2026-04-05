@@ -25,6 +25,12 @@ interface BotConfig {
   pm_conf_weight_max_pct: string;
   pm_trade_window_minutes: string;
   pm_market_max_distance_pct: string;
+  exchange_platform: string;
+  hyperliquid_enabled: string;
+  hyperliquid_max_slippage_bps: string;
+  hyperliquid_perp_leverage_cap: string;
+  hyperliquid_bootstrap_ready: string;
+  hyperliquid_bootstrap_state: string;
   trading_enabled: string;
 }
 
@@ -40,6 +46,12 @@ const DEFAULTS: BotConfig = {
   pm_conf_weight_max_pct: "30",
   pm_trade_window_minutes: "60",
   pm_market_max_distance_pct: "5",
+  exchange_platform: "hyperliquid",
+  hyperliquid_enabled: "false",
+  hyperliquid_max_slippage_bps: "75",
+  hyperliquid_perp_leverage_cap: "5",
+  hyperliquid_bootstrap_ready: "false",
+  hyperliquid_bootstrap_state: "disabled",
   trading_enabled: "false",
 };
 
@@ -57,7 +69,12 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   pm_conf_weight_max_pct: "Maximum Polymarket influence on round confidence when the crowd model is weaker.",
   pm_trade_window_minutes: "How many recent minutes of Polymarket trades and price history to use in the signal.",
   pm_market_max_distance_pct: "Maximum distance allowed between Cassandrina's target price and the matched Polymarket threshold market.",
-  trading_enabled: "When enabled, the bot executes real Binance trades. When disabled, the scheduler still runs, but executions stay in dry-run mode.",
+  exchange_platform: "Select the preferred exchange venue for live execution. If the selected venue is not ready, Cassandrina fails closed to simulated mode.",
+  hyperliquid_enabled: "Enable Hyperliquid as an available live venue. Bootstrap readiness is still required before live orders can be sent.",
+  hyperliquid_max_slippage_bps: "Maximum allowed slippage in basis points when Cassandrina sends Hyperliquid IOC entry and exit orders.",
+  hyperliquid_perp_leverage_cap: "Upper cap for Hyperliquid perp leverage. Strategy defaults are clipped to this limit.",
+  hyperliquid_bootstrap_ready: "Read-only readiness flag set by the Hyperliquid bootstrap task when the generated account is funded and agent approval has completed.",
+  trading_enabled: "When enabled, the bot executes real exchange trades. When disabled, the scheduler still runs, but executions stay in dry-run mode.",
 };
 
 function formatHeartbeat(heartbeatAt: string | null): string {
@@ -163,8 +180,10 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
 
     const payload: Record<string, unknown> = {};
     Array.from(formData.entries()).forEach(([key, value]) => {
-      if (key === "trading_enabled") {
+      if (["trading_enabled", "hyperliquid_enabled", "hyperliquid_bootstrap_ready"].includes(key)) {
         payload[key] = value === "true";
+      } else if (key === "exchange_platform") {
+        payload[key] = value;
       } else if (
         [
           "prediction_target_hour",
@@ -178,6 +197,8 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
           "pm_conf_weight_max_pct",
           "pm_trade_window_minutes",
           "pm_market_max_distance_pct",
+          "hyperliquid_max_slippage_bps",
+          "hyperliquid_perp_leverage_cap",
         ].includes(key)
       ) {
         payload[key] = key.includes("pct")
@@ -359,23 +380,101 @@ function ConfigForm({ config, onSaved }: { config: BotConfig; onSaved: (c: BotCo
       </ConfigSection>
 
       <ConfigSection title="Bot Triggers" icon={Zap}>
-        <TooltipField
-          label="Trading Enabled"
-          name="trading_enabled"
-          tooltip={FIELD_TOOLTIPS.trading_enabled}
-          currentValue={current.trading_enabled === "true" ? "Yes (live)" : "No (dry run)"}
-        >
-          <Select
-            id="trading_enabled"
-            name="trading_enabled"
-            defaultValue={current.trading_enabled}
-            key={`trading_${current.trading_enabled}`}
-            className="bg-secondary border-white/10"
+        <div className="grid md:grid-cols-2 gap-4">
+          <TooltipField
+            label="Exchange Platform"
+            name="exchange_platform"
+            tooltip={FIELD_TOOLTIPS.exchange_platform}
+            currentValue={current.exchange_platform}
           >
-            <option value="true">Yes — execute trades</option>
-            <option value="false">No — dry run only</option>
-          </Select>
-        </TooltipField>
+            <Select
+              id="exchange_platform"
+              name="exchange_platform"
+              defaultValue={current.exchange_platform}
+              key={`exchange_${current.exchange_platform}`}
+              className="bg-secondary border-white/10"
+            >
+              <option value="hyperliquid">Hyperliquid</option>
+              <option value="binance">Binance</option>
+            </Select>
+          </TooltipField>
+
+          <TooltipField
+            label="Trading Enabled"
+            name="trading_enabled"
+            tooltip={FIELD_TOOLTIPS.trading_enabled}
+            currentValue={current.trading_enabled === "true" ? "Yes (live)" : "No (dry run)"}
+          >
+            <Select
+              id="trading_enabled"
+              name="trading_enabled"
+              defaultValue={current.trading_enabled}
+              key={`trading_${current.trading_enabled}`}
+              className="bg-secondary border-white/10"
+            >
+              <option value="true">Yes — execute trades</option>
+              <option value="false">No — dry run only</option>
+            </Select>
+          </TooltipField>
+
+          <TooltipField
+            label="Hyperliquid Enabled"
+            name="hyperliquid_enabled"
+            tooltip={FIELD_TOOLTIPS.hyperliquid_enabled}
+            currentValue={current.hyperliquid_enabled === "true" ? "Enabled" : "Disabled"}
+          >
+            <Select
+              id="hyperliquid_enabled"
+              name="hyperliquid_enabled"
+              defaultValue={current.hyperliquid_enabled}
+              key={`hyperliquid_enabled_${current.hyperliquid_enabled}`}
+              className="bg-secondary border-white/10"
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </Select>
+          </TooltipField>
+
+          <TooltipField
+            label="HL Slippage (bps)"
+            name="hyperliquid_max_slippage_bps"
+            tooltip={FIELD_TOOLTIPS.hyperliquid_max_slippage_bps}
+            currentValue={`${current.hyperliquid_max_slippage_bps} bps`}
+          >
+            <Input
+              id="hyperliquid_max_slippage_bps"
+              type="number"
+              name="hyperliquid_max_slippage_bps"
+              min={1}
+              max={5000}
+              defaultValue={current.hyperliquid_max_slippage_bps}
+              key={`hl_slippage_${current.hyperliquid_max_slippage_bps}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+
+          <TooltipField
+            label="HL Leverage Cap"
+            name="hyperliquid_perp_leverage_cap"
+            tooltip={FIELD_TOOLTIPS.hyperliquid_perp_leverage_cap}
+            currentValue={`${current.hyperliquid_perp_leverage_cap}x`}
+          >
+            <Input
+              id="hyperliquid_perp_leverage_cap"
+              type="number"
+              name="hyperliquid_perp_leverage_cap"
+              min={1}
+              max={20}
+              defaultValue={current.hyperliquid_perp_leverage_cap}
+              key={`hl_leverage_${current.hyperliquid_perp_leverage_cap}`}
+              className="bg-secondary border-white/10"
+            />
+          </TooltipField>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+          Hyperliquid bootstrap: {current.hyperliquid_bootstrap_state} | Ready:{" "}
+          {current.hyperliquid_bootstrap_ready === "true" ? "yes" : "no"}
+        </div>
       </ConfigSection>
 
       <ConfigSection title="Polymarket Modulation" icon={Activity}>
@@ -602,12 +701,13 @@ export default function ConfigPage() {
               </p>
             </div>
             <div className="rounded-lg border border-white/10 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-              Trading mode: {config.trading_enabled === "true" ? "Live Trading" : "Dry Run"}
+              Trading mode: {config.trading_enabled === "true" ? "Live Trading" : "Dry Run"} | Venue:{" "}
+              {botStatus?.exchangePlatform ?? config.exchange_platform}
             </div>
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Lifecycle controls manage whether the scheduler is running. Trading mode below only decides whether a running bot sends real Binance orders or stays in dry-run mode.
+            Lifecycle controls manage whether the scheduler is running. Trading mode below only decides whether a running bot sends real exchange orders or stays in dry-run mode.
           </p>
 
           {botMessage && (

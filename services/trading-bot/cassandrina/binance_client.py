@@ -16,12 +16,27 @@ import os
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
+from cassandrina.exchange import (
+    ExchangeError,
+    ExchangePlatform,
+    MarketMeta,
+    PositionState,
+    QuantizedOrderSize,
+)
 
-class BinanceError(Exception):
+_BTC_LOT_SIZE = 0.001
+_BTC_PRICE_DECIMALS = 2
+_BTC_SIZE_DECIMALS = 3
+_SATS_PER_BTC = 100_000_000
+
+
+class BinanceError(ExchangeError):
     """Raised when the Binance API returns an error."""
 
 
 class BinanceClientWrapper:
+    platform = ExchangePlatform.BINANCE
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -39,6 +54,42 @@ class BinanceClientWrapper:
             api_key=self._api_key,
             api_secret=self._api_secret,
             testnet=self._testnet,
+        )
+
+    def get_market_meta(self, symbol: str) -> MarketMeta:
+        return MarketMeta(
+            symbol=symbol,
+            venue_symbol=symbol,
+            min_size_btc=_BTC_LOT_SIZE,
+            size_decimals=_BTC_SIZE_DECIMALS,
+            price_decimals=_BTC_PRICE_DECIMALS,
+            raw={"testnet": self._testnet},
+        )
+
+    def quantize_btc_amount(
+        self,
+        sats: int,
+        *,
+        symbol: str,
+        leverage: int = 1,
+        use_quote_minimum: bool = False,
+        price_hint: float | None = None,
+    ) -> QuantizedOrderSize:
+        del symbol, leverage, use_quote_minimum, price_hint
+        raw_btc = max(float(sats), 0.0) / _SATS_PER_BTC
+        quantity = round(raw_btc, _BTC_SIZE_DECIMALS)
+        if quantity < _BTC_LOT_SIZE:
+            return QuantizedOrderSize(
+                raw_btc=raw_btc,
+                quantity_btc=0.0,
+                min_size_btc=_BTC_LOT_SIZE,
+                skipped=True,
+                reason="pool too small for Binance minimum lot size",
+            )
+        return QuantizedOrderSize(
+            raw_btc=raw_btc,
+            quantity_btc=quantity,
+            min_size_btc=_BTC_LOT_SIZE,
         )
 
     def _safe_call(self, fn, *args, **kwargs):
@@ -231,19 +282,20 @@ class BinanceClientWrapper:
 
     # ── Position Info ────────────────────────────────────────
 
-    def get_futures_position(self, symbol: str) -> dict | None:
+    def get_futures_position(self, symbol: str) -> PositionState | None:
         """Get current futures position for *symbol*. Returns None if no open position."""
         positions = self._safe_call(self._client.futures_position_information, symbol=symbol)
         for pos in positions:
             amt = float(pos.get("positionAmt", 0))
             if amt != 0:
-                return {
-                    "symbol": pos["symbol"],
-                    "position_amt": amt,
-                    "entry_price": float(pos.get("entryPrice", 0)),
-                    "unrealized_pnl": float(pos.get("unRealizedProfit", 0)),
-                    "leverage": int(pos.get("leverage", 1)),
-                }
+                return PositionState(
+                    symbol=pos["symbol"],
+                    quantity_btc=abs(amt),
+                    entry_price=float(pos.get("entryPrice", 0)),
+                    unrealized_pnl=float(pos.get("unRealizedProfit", 0)),
+                    leverage=int(pos.get("leverage", 1)),
+                    raw=dict(pos),
+                )
         return None
 
     def get_spot_balance(self, asset: str = "BTC") -> float:
@@ -265,3 +317,41 @@ class BinanceClientWrapper:
                 symbol=symbol,
                 orderId=order["orderId"],
             )
+
+    def get_realized_pnl(
+        self,
+        symbol: str,
+        *,
+        strategy: str,
+        direction: str,
+        sats_deployed: int,
+        opened_at_ms: int,
+        current_btc_price: float,
+    ) -> int | None:
+        del sats_deployed
+        try:
+            if strategy in {"A", "B", "C", "D", "E"}:
+                if strategy in {"A", "B"}:
+                    incomes = self.get_futures_income(symbol=symbol, start_time=opened_at_ms)
+                    realized = sum(float(item.get("income", 0.0)) for item in incomes)
+                    if current_btc_price <= 0:
+                        return None
+                    return int(round((realized / current_btc_price) * _SATS_PER_BTC))
+
+                trades = self.get_spot_trades(symbol=symbol, start_time=opened_at_ms)
+                realized_usdt = 0.0
+                close_side = "SELL" if direction == "long" else "BUY"
+                for trade in trades:
+                    if trade.get("isBuyer") == (close_side == "BUY"):
+                        qty = float(trade.get("qty", 0.0))
+                        price = float(trade.get("price", 0.0))
+                        commission = float(trade.get("commission", 0.0))
+                        realized_usdt += qty * price - commission
+                if current_btc_price <= 0:
+                    return None
+                return int(round((realized_usdt / current_btc_price) * _SATS_PER_BTC))
+        except BinanceError:
+            raise
+        except Exception as exc:
+            raise BinanceError(str(exc)) from exc
+        return None

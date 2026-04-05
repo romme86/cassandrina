@@ -34,8 +34,8 @@ from cassandrina.scoring import (
     compute_user_congruency,
     is_prediction_successful,
 )
-from cassandrina.strategy import Strategy, get_direction, get_leverage, select_strategy
-from cassandrina.trade_executor import _sats_to_btc
+from cassandrina.exchange import ExchangePlatform
+from cassandrina.strategy import Strategy, get_direction, get_exchange_leverage, select_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -466,7 +466,7 @@ class PredictionScheduler:
             logger.exception("Failed to send Polymarket BTC recap")
 
     def _job_fund_reconciliation(self) -> None:
-        """Compare ledger totals against LND and Binance balances."""
+        """Compare ledger totals against LND and exchange balances."""
         try:
             total_deposited = self._db.get_total_deposited_sats()
             total_balances = self._db.get_total_user_balances()
@@ -483,9 +483,10 @@ class PredictionScheduler:
             if self._trade_executor:
                 try:
                     btc_balance = self._trade_executor._client.get_spot_balance("BTC")
-                    report["binance_btc_balance"] = btc_balance
+                    report["exchange_platform"] = self._trade_executor.platform.value
+                    report["exchange_btc_balance"] = btc_balance
                 except Exception:
-                    logger.exception("Failed to query Binance balance for reconciliation")
+                    logger.exception("Failed to query exchange balance for reconciliation")
             self._publish("reconciliation:funds", report)
             logger.info("Fund reconciliation: %s", report)
         except Exception:
@@ -501,7 +502,7 @@ class PredictionScheduler:
             logger.exception("Failed to clean up expired invoices")
 
     def _job_reconcile_positions(self) -> None:
-        """Check that open trades in the DB match actual Binance positions."""
+        """Check that open trades in the DB match actual venue positions."""
         if not self._trade_executor:
             return
         try:
@@ -788,7 +789,7 @@ class PredictionScheduler:
         )
 
     def _close_exchange_position(self, trade: dict) -> None:
-        """Close the actual Binance position at settlement."""
+        """Close the actual venue position at settlement."""
         if not self._trade_executor:
             return
         bot_config = self._safe_get_bot_config()
@@ -797,7 +798,12 @@ class PredictionScheduler:
             return
         try:
             strategy = Strategy(trade["strategy"])
-            quantity = _sats_to_btc(int(trade["sats_deployed"]))
+            leverage = get_exchange_leverage(strategy, self._trade_executor.platform)
+            quantity = self._trade_executor.quantize_trade_size(
+                int(trade["sats_deployed"]),
+                leverage=leverage,
+                price_hint=float(trade.get("entry_price", 0.0) or 0.0),
+            ).quantity_btc
             if quantity <= 0:
                 return
             self._trade_executor.close_position(
@@ -909,6 +915,9 @@ class PredictionScheduler:
             _DEFAULT_PM_MARKET_MAX_DISTANCE_PCT,
         )
         trading_enabled = bot_config.get("trading_enabled", "false").lower() == "true"
+        exchange_platform = (
+            self._trade_executor.platform.value if self._trade_executor is not None else "simulated"
+        )
         trade_live = trading_enabled and self._trade_executor is not None
         target_low_price, target_high_price, target_price = self._compute_target_range(participants)
         current_price = self._market_data.get_btc_price()
@@ -974,6 +983,11 @@ class PredictionScheduler:
             )
         strategy = select_strategy(confidence_score)
         sats_deployed = sum(int(p["sats_amount"]) for p in participants)
+        strategy_leverage = (
+            get_exchange_leverage(strategy, self._trade_executor.platform)
+            if self._trade_executor is not None
+            else get_exchange_leverage(strategy, ExchangePlatform.BINANCE)
+        )
         self._db.update_round_analysis(
             round_id,
             btc_target_low_price=target_low_price,
@@ -984,7 +998,12 @@ class PredictionScheduler:
             strategy_used=strategy.value,
         )
 
-        result = {"type": "dry_run", "order": {"orderId": f"dry-run-{round_id}"}}
+        result = {
+            "type": "dry_run",
+            "platform": exchange_platform,
+            "order": {"orderId": f"dry-run-{round_id}"},
+            "orders": [{"orderId": f"dry-run-{round_id}", "kind": "entry"}],
+        }
         if trade_live:
             result = self._trade_executor.execute(
                 strategy=strategy,
@@ -1004,9 +1023,11 @@ class PredictionScheduler:
             direction=direction,
             entry_price=current_price,
             target_price=target_price,
-            leverage=get_leverage(strategy),
+            leverage=strategy_leverage,
             sats_deployed=sats_deployed,
-            binance_order_id=str(order_id) if order_id is not None else None,
+            exchange_platform=exchange_platform,
+            exchange_order_id=str(order_id) if order_id is not None else None,
+            exchange_metadata=result,
         )
         self._publish(
             "trade:opened",
@@ -1024,6 +1045,9 @@ class PredictionScheduler:
                 "polymarket_source": polymarket_source,
                 "polymarket_influence_pct": polymarket_influence_pct,
                 "sats_deployed": sats_deployed,
+                "exchange_platform": exchange_platform,
+                "exchange_order_id": str(order_id) if order_id is not None else "",
+                "exchange_metadata": result,
                 "dry_run": not trade_live,
             },
         )
@@ -1040,6 +1064,9 @@ class PredictionScheduler:
             "polymarket_source": polymarket_source,
             "polymarket_influence_pct": polymarket_influence_pct,
             "sats_deployed": sats_deployed,
+            "exchange_platform": exchange_platform,
+            "exchange_order_id": str(order_id) if order_id is not None else "",
+            "exchange_metadata": result,
             "dry_run": not trade_live,
         }
 
@@ -1085,7 +1112,7 @@ class PredictionScheduler:
         return weighted_low / total_sats, weighted_high / total_sats, weighted_mid / total_sats
 
     def _compute_trade_outcome_with_exchange(self, trade: dict, actual_price: float) -> tuple[int, str]:
-        """Try to get actual PnL from Binance, fall back to theoretical."""
+        """Try to get actual PnL from the venue, fall back to theoretical."""
         if self._trade_executor and trade.get("opened_at"):
             opened_at = trade["opened_at"]
             if hasattr(opened_at, "timestamp"):

@@ -40,6 +40,9 @@ describe("GET /api/admin/bot", () => {
       { key: "bot_actual_state", value: "running" },
       { key: "bot_heartbeat_at", value: heartbeatAt },
       { key: "trading_enabled", value: "true" },
+      { key: "exchange_platform", value: "hyperliquid" },
+      { key: "hyperliquid_bootstrap_ready", value: "false" },
+      { key: "hyperliquid_bootstrap_state", value: "disabled" },
     ]);
 
     const res = await GET(new NextRequest("http://localhost/api/admin/bot"));
@@ -51,6 +54,9 @@ describe("GET /api/admin/bot", () => {
       heartbeatAt,
       isResponsive: true,
       tradingEnabled: true,
+      exchangePlatform: "hyperliquid",
+      hyperliquidBootstrapReady: false,
+      hyperliquidBootstrapState: "disabled",
     });
   });
 });
@@ -76,6 +82,9 @@ describe("POST /api/admin/bot", () => {
       { key: "bot_actual_state", value: "running" },
       { key: "bot_heartbeat_at", value: heartbeatAt },
       { key: "trading_enabled", value: "false" },
+      { key: "exchange_platform", value: "binance" },
+      { key: "hyperliquid_bootstrap_ready", value: "false" },
+      { key: "hyperliquid_bootstrap_state", value: "disabled" },
     ]);
 
     const res = await POST(makeRequest({ action: "restart" }));
@@ -97,6 +106,9 @@ describe("POST /api/admin/bot", () => {
       heartbeatAt,
       isResponsive: true,
       tradingEnabled: false,
+      exchangePlatform: "binance",
+      hyperliquidBootstrapReady: false,
+      hyperliquidBootstrapState: "disabled",
     });
   });
 
@@ -107,6 +119,9 @@ describe("POST /api/admin/bot", () => {
       { key: "bot_actual_state", value: "running" },
       { key: "bot_heartbeat_at", value: heartbeatAt },
       { key: "trading_enabled", value: "true" },
+      { key: "exchange_platform", value: "hyperliquid" },
+      { key: "hyperliquid_bootstrap_ready", value: "true" },
+      { key: "hyperliquid_bootstrap_state", value: "ready" },
     ]);
 
     const res = await POST(makeRequest({ action: "send_polymarket_recap" }));
@@ -123,6 +138,9 @@ describe("POST /api/admin/bot", () => {
       heartbeatAt,
       isResponsive: true,
       tradingEnabled: true,
+      exchangePlatform: "hyperliquid",
+      hyperliquidBootstrapReady: true,
+      hyperliquidBootstrapState: "ready",
     });
   });
 });

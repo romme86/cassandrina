@@ -813,13 +813,18 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 		if dryRun, ok := tradeSummary["dry_run"].(bool); ok && dryRun {
 			mode = "simulated"
 		}
+		venue := strings.TrimSpace(asString(tradeSummary["exchange_platform"]))
+		if venue == "" {
+			venue = "exchange"
+		}
 		lines = append(
 			lines,
 			"",
 			fmt.Sprintf(
-				"Cassandrina used $%.2f as the opening number and opened a %s position (%s).",
+				"Cassandrina used $%.2f as the opening number and opened a %s position on %s (%s).",
 				asFloat(tradeSummary["target_price"]),
 				strings.ToUpper(asString(tradeSummary["direction"])),
+				venue,
 				mode,
 			),
 			fmt.Sprintf(
@@ -834,6 +839,9 @@ func formatPredictionCloseMessage(closeReason string, participants []map[string]
 				asString(tradeSummary["strategy"]),
 			),
 		)
+		if orderID := strings.TrimSpace(asString(tradeSummary["exchange_order_id"])); orderID != "" {
+			lines = append(lines, fmt.Sprintf("Order ID: %s", orderID))
+		}
 		if probability, ok := tradeSummary["polymarket_probability"].(float64); ok {
 			polymarketLine := fmt.Sprintf("Polymarket: %.1f%%", probability*100)
 			if source := strings.TrimSpace(asString(tradeSummary["polymarket_source"])); source != "" && source != "unavailable" {

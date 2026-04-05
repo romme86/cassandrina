@@ -4,9 +4,11 @@ Tests for strategy selection helpers.
 
 import pytest
 
+from cassandrina.exchange import ExchangePlatform
 from cassandrina.strategy import (
     Strategy,
     get_direction,
+    get_exchange_leverage,
     get_grid_midpoint,
     get_leverage,
     select_strategy,
@@ -67,6 +69,11 @@ class TestGetLeverage:
         assert get_leverage(Strategy.C) == 1
         assert get_leverage(Strategy.D) == 1
         assert get_leverage(Strategy.E) == 1
+
+    def test_hyperliquid_leverage_profile_is_lower(self):
+        assert get_exchange_leverage(Strategy.A, ExchangePlatform.HYPERLIQUID) == 5
+        assert get_exchange_leverage(Strategy.B, ExchangePlatform.HYPERLIQUID) == 3
+        assert get_exchange_leverage(Strategy.E, ExchangePlatform.HYPERLIQUID) == 1
 
 
 class TestGetGridMidpoint:

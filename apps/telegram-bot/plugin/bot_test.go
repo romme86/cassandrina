@@ -121,7 +121,7 @@ func TestHandleRedisEventPredictionCloseShowsSimulatedModeAndPolymarketDetails(t
 	if len(gateway.messages) != 1 {
 		t.Fatalf("expected 1 group message, got %d", len(gateway.messages))
 	}
-	if want := "opened a LONG position (simulated)"; !contains(gateway.messages[0].text, want) {
+	if want := "opened a LONG position on exchange (simulated)"; !contains(gateway.messages[0].text, want) {
 		t.Fatalf("message %q does not contain %q", gateway.messages[0].text, want)
 	}
 	if want := "Polymarket: 50.0% (probability) | Influence: 23.1%"; !contains(gateway.messages[0].text, want) {

@@ -8,6 +8,9 @@ export interface BotControlStatus {
   heartbeatAt: string | null;
   isResponsive: boolean;
   tradingEnabled: boolean;
+  exchangePlatform: "binance" | "hyperliquid";
+  hyperliquidBootstrapReady: boolean;
+  hyperliquidBootstrapState: string;
 }
 
 export const BOT_HEARTBEAT_STALE_MS = 45_000;
@@ -36,5 +39,9 @@ export function deriveBotControlStatus(config: Record<string, string>): BotContr
     heartbeatAt,
     isResponsive,
     tradingEnabled: config.trading_enabled === "true",
+    exchangePlatform:
+      config.exchange_platform === "binance" ? "binance" : "hyperliquid",
+    hyperliquidBootstrapReady: config.hyperliquid_bootstrap_ready === "true",
+    hyperliquidBootstrapState: config.hyperliquid_bootstrap_state ?? "disabled",
   };
 }

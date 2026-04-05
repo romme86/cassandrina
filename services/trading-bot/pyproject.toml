@@ -8,11 +8,17 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "^3.11"
 python-binance = "^1.0.19"
+hyperliquid-python-sdk = "*"
+eth-account = "^0.13"
+web3 = "^7.0"
 requests = "^2.31"
 apscheduler = "^3.10"
 redis = "^5.0"
 psycopg2-binary = "^2.9"
 python-dotenv = "^1.0"
+
+[tool.poetry.scripts]
+hyperliquid-bootstrap = "cassandrina.hyperliquid_bootstrap:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

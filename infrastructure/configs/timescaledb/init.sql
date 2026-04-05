@@ -131,7 +131,9 @@ CREATE TABLE IF NOT EXISTS trades (
     sats_deployed   INT NOT NULL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'liquidated')),
     pnl_sats        INT,
-    binance_order_id TEXT,
+    exchange_platform TEXT NOT NULL DEFAULT 'binance',
+    exchange_order_id TEXT,
+    exchange_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     closed_at       TIMESTAMPTZ
 );
@@ -175,6 +177,12 @@ INSERT INTO bot_config (key, value) VALUES
     ('pm_conf_weight_max_pct', '30'),
     ('pm_trade_window_minutes', '60'),
     ('pm_market_max_distance_pct', '5'),
+    ('exchange_platform', 'hyperliquid'),
+    ('hyperliquid_enabled', 'false'),
+    ('hyperliquid_max_slippage_bps', '75'),
+    ('hyperliquid_perp_leverage_cap', '5'),
+    ('hyperliquid_bootstrap_ready', 'false'),
+    ('hyperliquid_bootstrap_state', 'disabled'),
     ('trading_enabled', 'true'),
     ('bot_desired_state', 'running'),
     ('bot_actual_state', 'offline'),
@@ -201,6 +209,24 @@ CREATE INDEX IF NOT EXISTS idx_strategy_votes_week ON strategy_votes(week_start)
 -- ============================================================
 -- Drop the old one-round-per-day unique constraint if it exists,
 -- allowing manual override rounds on the same question_date.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_name = 'trades' AND column_name = 'binance_order_id'
+  ) THEN
+    ALTER TABLE trades RENAME COLUMN binance_order_id TO exchange_order_id;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE trades
+    ADD COLUMN IF NOT EXISTS exchange_platform TEXT NOT NULL DEFAULT 'binance',
+    ADD COLUMN IF NOT EXISTS exchange_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+END $$;
+
 DO $$
 BEGIN
   IF EXISTS (

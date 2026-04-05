@@ -11,7 +11,7 @@ import threading
 from typing import Iterator
 
 from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 
 
 class PostgresRepository:
@@ -538,15 +538,41 @@ class PostgresRepository:
         target_price: float,
         leverage: int,
         sats_deployed: int,
-        binance_order_id: str | None = None,
+        exchange_platform: str = "binance",
+        exchange_order_id: str | None = None,
+        exchange_metadata: dict | None = None,
     ) -> dict:
         with self._cursor(commit=True) as cur:
             cur.execute(
                 """
                 INSERT INTO trades
-                    (round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, binance_order_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, round_id, strategy, direction, entry_price, target_price, leverage, sats_deployed, status, binance_order_id, opened_at
+                    (
+                        round_id,
+                        strategy,
+                        direction,
+                        entry_price,
+                        target_price,
+                        leverage,
+                        sats_deployed,
+                        exchange_platform,
+                        exchange_order_id,
+                        exchange_metadata
+                    )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING
+                    id,
+                    round_id,
+                    strategy,
+                    direction,
+                    entry_price,
+                    target_price,
+                    leverage,
+                    sats_deployed,
+                    status,
+                    exchange_platform,
+                    exchange_order_id,
+                    exchange_metadata,
+                    opened_at
                 """,
                 (
                     round_id,
@@ -556,7 +582,9 @@ class PostgresRepository:
                     target_price,
                     leverage,
                     sats_deployed,
-                    binance_order_id,
+                    exchange_platform,
+                    exchange_order_id,
+                    Json(exchange_metadata or {}),
                 ),
             )
             return dict(cur.fetchone())

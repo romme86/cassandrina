@@ -16,6 +16,9 @@ import redis
 from dotenv import load_dotenv
 
 from cassandrina.binance_client import BinanceClientWrapper
+from cassandrina.exchange import ExchangePlatform
+from cassandrina.hyperliquid_bootstrap import HyperliquidBootstrapManager
+from cassandrina.hyperliquid_client import HyperliquidClient
 from cassandrina.lnd_client import LNDClient
 from cassandrina.market_data import MarketDataClient
 from cassandrina.polymarket import PolymarketClient
@@ -51,10 +54,67 @@ HEARTBEAT_INTERVAL_SECONDS = 15
 BOT_STATE_VALUES = {"running", "paused", "stopped"}
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _normalize_bot_state(value: str | None, fallback: str = "running") -> str:
     if value in BOT_STATE_VALUES:
         return value
     return fallback
+
+
+def _sync_bootstrap_status(db: PostgresRepository, state) -> None:
+    db.set_bot_config_values(
+        {
+            "hyperliquid_bootstrap_state": state.state,
+            "hyperliquid_bootstrap_ready": "true" if state.ready else "false",
+            "hyperliquid_enabled": "true" if state.state != "disabled" else "false",
+            "hyperliquid_master_address": state.master_address,
+            "hyperliquid_agent_address": state.agent_address,
+            "hyperliquid_account_value_usdc": str(state.account_value_usdc),
+            "hyperliquid_last_error": state.last_error,
+        }
+    )
+
+
+def _build_trade_executor(
+    *,
+    bot_config: dict[str, str],
+    bootstrap_manager: HyperliquidBootstrapManager,
+) -> TradeExecutor | None:
+    selected_platform = (
+        os.environ.get("EXCHANGE_PLATFORM")
+        or bot_config.get("exchange_platform")
+        or ExchangePlatform.HYPERLIQUID.value
+    ).lower()
+    if selected_platform == ExchangePlatform.HYPERLIQUID.value:
+        bootstrap_ready = bot_config.get("hyperliquid_bootstrap_ready", "false").lower() == "true"
+        hyperliquid_enabled = (
+            bot_config.get("hyperliquid_enabled", str(_env_flag("HYPERLIQUID_ENABLED", False))).lower()
+            == "true"
+        )
+        if _env_flag("HYPERLIQUID_UNSAFE_BOOTSTRAP", False):
+            try:
+                state = bootstrap_manager.advance()
+                bootstrap_ready = state.ready
+            except Exception:
+                logger.exception("Failed to advance Hyperliquid bootstrap state")
+        if hyperliquid_enabled and bootstrap_ready:
+            client = HyperliquidClient(
+                api_url=os.environ.get("HYPERLIQUID_API_URL"),
+                account_address=os.environ.get("HYPERLIQUID_MASTER_ADDRESS"),
+                agent_private_key=os.environ.get("HYPERLIQUID_AGENT_PRIVATE_KEY"),
+            )
+            return TradeExecutor(client=client)
+        return None
+
+    if os.environ.get("BINANCE_API_KEY") and os.environ.get("BINANCE_API_SECRET"):
+        return TradeExecutor(client=BinanceClientWrapper())
+    return None
 
 
 def main() -> None:
@@ -62,6 +122,16 @@ def main() -> None:
     redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
     redis_client = redis.from_url(redis_url, decode_responses=True)
     db = PostgresRepository(os.environ.get("DATABASE_URL"))
+    bootstrap_manager = HyperliquidBootstrapManager()
+    try:
+        bootstrap_manager._sync_env_from_file()
+    except Exception:
+        logger.exception("Failed to load Hyperliquid bootstrap env file")
+    try:
+        bootstrap_state = bootstrap_manager.load_state()
+        _sync_bootstrap_status(db, bootstrap_state)
+    except Exception:
+        logger.exception("Failed to sync Hyperliquid bootstrap status")
 
     config = SchedulerConfig(
         scheduler_timezone=os.environ.get("SCHEDULER_TIMEZONE", "Europe/Zurich"),
@@ -79,9 +149,11 @@ def main() -> None:
     if os.environ.get("LND_HOST") and os.environ.get("LND_MACAROON_HEX"):
         lnd_client = LNDClient()
 
-    trade_executor = None
-    if os.environ.get("BINANCE_API_KEY") and os.environ.get("BINANCE_API_SECRET"):
-        trade_executor = TradeExecutor(BinanceClientWrapper())
+    bot_config = db.get_bot_config()
+    trade_executor = _build_trade_executor(
+        bot_config=bot_config,
+        bootstrap_manager=bootstrap_manager,
+    )
 
     scheduler = PredictionScheduler(
         config=config,
@@ -117,6 +189,16 @@ def main() -> None:
     def reconcile_scheduler_state() -> None:
         nonlocal scheduler_running, last_restart_token, last_polymarket_recap_token
         bot_config = db.get_bot_config()
+        if _env_flag("HYPERLIQUID_UNSAFE_BOOTSTRAP", False):
+            try:
+                bootstrap_state = bootstrap_manager.advance()
+                _sync_bootstrap_status(db, bootstrap_state)
+            except Exception:
+                logger.exception("Failed to advance Hyperliquid bootstrap during control loop")
+        scheduler._trade_executor = _build_trade_executor(
+            bot_config=bot_config,
+            bootstrap_manager=bootstrap_manager,
+        )
         desired_state = _normalize_bot_state(bot_config.get("bot_desired_state"), "running")
         restart_token = bot_config.get("bot_restart_token", "")
         polymarket_recap_token = bot_config.get("polymarket_recap_request_token", "")
